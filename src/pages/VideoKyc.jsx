@@ -13,7 +13,7 @@ import {
   Search
 } from 'lucide-react';
 
-function Dashboard() {
+function VideoKyc() {
   const [activeTab, setActiveTab] = useState('call'); // 'queue', 'call', 'data'
   const [currentCustomer] = useState({
     name: "Rajesh Kumar",
@@ -272,4 +272,4 @@ function CheckItem({ label, checked }) {
   );
 }
 
-export default Dashboard;
+export default VideoKyc;

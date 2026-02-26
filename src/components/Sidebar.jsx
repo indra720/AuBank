@@ -20,7 +20,14 @@ import {
   GraduationCap,
   Building2,
   UserCheck,
-  ShieldEllipsis
+  ShieldEllipsis,
+  Wrench,
+  Activity,
+  ClipboardEdit,
+  Wallet,
+  FileSearch,
+  LogIn,
+  UserPlus
 } from "lucide-react";
 import { Link, useLocation } from "react-router-dom";
 import { useState } from "react";
@@ -30,7 +37,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
   const [hoveredItem, setHoveredItem] = useState(null);
 
   const menuItems = [
-    { icon: <LayoutDashboard size={22} />, label: "Dashboard", path: "/dashboard" },
+    { icon: <LayoutDashboard size={22} />, label: "Video Kyc", path: "/videokyc" },
     { icon: <Cog size={22} />, label: "Operation", path: "/operation" },
     { icon: <Globe size={22} />, label: "Global", path: "/global" },
     { icon: <User size={22} />, label: "Customer", path: "/customer" },
@@ -42,6 +49,13 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
     { icon: <Building2 size={22} />, label: "Branch Management", path: "/branchmanagement" },
     { icon: <UserCheck size={22} />, label: "Agent Performance", path: "/AgentPerformance" },
     { icon: <ShieldEllipsis size={22} />, label: "Compliance & Risk", path: "/compliancerisk" },
+    { icon: <Wrench size={22} />, label: "Service Request", path: "/servicerequest" },
+    { icon: <Activity size={22} />, label: "Service Tracking", path: "/servicetracking" },
+    { icon: <ClipboardEdit size={22} />, label: "Service Form", path: "/serviceform" },
+    { icon: <Wallet size={22} />, label: "Wealth Portal", path: "/wealthportal" },
+    { icon: <FileSearch size={22} />, label: "Internal Audit", path: "/internalaudit" },
+    { icon: <LogIn size={22} />, label: "Login", path: "/login" },
+    { icon: <UserPlus size={22} />, label: "Register", path: "/register" },
     { icon: <Settings size={22} />, label: "Settings", path: "/settings" },
   ];
 
@@ -132,7 +146,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
         </nav>
 
         {/* Bottom Actions */}
-        <div className="p-4 border-t border-gray-800 space-y-2 bg-gray-900">
+        <div className="p-4 border-t border-gray-800 space-y-2 bg-gray-900 sticky bottom-0 z-50 ">
           <div className="relative flex items-center" onMouseEnter={() => setHoveredItem('Notifications')} onMouseLeave={() => setHoveredItem(null)}>
             <button className="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-gray-800 hover:text-white transition-all text-left">
               <Bell size={22} className="shrink-0" />
