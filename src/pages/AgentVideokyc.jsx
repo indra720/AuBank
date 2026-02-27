@@ -24,122 +24,141 @@ function AgentVideokyc() {
   });
   const [isCallActive, setIsCallActive] = useState(false);
   const [roomId, setRoomId] = useState("");
-const [callStarted, setCallStarted] = useState(false);
+  const [callStarted, setCallStarted] = useState(false);
   const agentVideoRef = useRef(null);
   const peerRef = useRef(null);
   const customerVideoRef = useRef(null);
 
- const startWebRTC = async (stream, roomId) => {
-  console.log("Joining room:", roomId);
+  const [isMuted, setIsMuted] = useState(false);
+  const localStreamRef = useRef(null);
 
-const agentToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBZ2VudF9BYWthc2giLCJyb2xlIjoiYWdlbnQiLCJleHAiOjE3NzIxOTQ1MDN9.u3bgup08yrBs1U2u12bie90wCqFxIVROSPZfRIbb6no";  
-  // WebSocket connect karo
- const ws = new WebSocket(
-  `ws://192.168.1.7:8000/ws/${roomId}/2?token=${agentToken}`
-);
-
-  // RTCPeerConnection banao
-  peerRef.current = new RTCPeerConnection({
-    iceServers: [{ urls: "stun:stun.l.google.com:19302" }]
-  });
-
-  // Agent ki stream add karo
-  stream.getTracks().forEach((track) => {
-    peerRef.current.addTrack(track, stream);
-  });
-
-  // Customer ka video yahan aayega
-  peerRef.current.ontrack = (event) => {
-    console.log("Customer video aa gaya!");
-    customerVideoRef.current.srcObject = event.streams[0];
-  };
-
-  // ICE candidate backend ko bhejo
-  peerRef.current.onicecandidate = (event) => {
-    if (event.candidate) {
-      ws.send(JSON.stringify({
-        type: "ice-candidate",
-        candidate: event.candidate
-      }));
+  const toggleMute = () => {
+    if (localStreamRef.current) {
+      localStreamRef.current.getAudioTracks().forEach((track) => {
+        track.enabled = !track.enabled;
+      });
+      setIsMuted((prev) => !prev);
     }
   };
 
-  // WebSocket messages handle karo
- ws.onopen = async () => {
-  console.log("WebSocket connected!");
-  await new Promise(resolve => setTimeout(resolve, 500)); // 👈 add karo
-    
-    // Offer banao aur bhejo
-    const offer = await peerRef.current.createOffer();
-    await peerRef.current.setLocalDescription(offer);
-    
-    ws.send(JSON.stringify({
-      type: "offer",
-      sdp: offer
-    }));
-    
-  };
+  const startWebRTC = async (stream, roomId) => {
+    console.log("Joining room:", roomId);
 
-ws.onmessage = async (event) => {
-  const message = JSON.parse(event.data);
-  console.log("Message aaya:", message);
+    const agentToken =
+      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBZ2VudF9BYWthc2giLCJyb2xlIjoiYWdlbnQiLCJleHAiOjE3NzIyNTU1NTd9.OP0jZI-RB9aPSqB9rbCFiypK9hUxOKHgSlc2ecGrHQY";
+    // WebSocket connect karo
+    const ws = new WebSocket(
+      `ws://192.168.1.7:8000/ws/${roomId}/2?token=${agentToken}`,
+    );
 
-  if (message.type === "peer-joined") {
-    console.log("Peer join ho gaya:", message.role);
-    // Agar customer join hua toh offer bhejo
-    if (message.role === "customer") {
+    // RTCPeerConnection banao
+    peerRef.current = new RTCPeerConnection({
+      iceServers: [{ urls: "stun:stun.l.google.com:19302" }],
+    });
+
+    // Agent ki stream add karo
+    stream.getTracks().forEach((track) => {
+      peerRef.current.addTrack(track, stream);
+    });
+
+    // Customer ka video yahan aayega
+    peerRef.current.ontrack = (event) => {
+      console.log("Customer video aa gaya!");
+      customerVideoRef.current.srcObject = event.streams[0];
+    };
+
+    // ICE candidate backend ko bhejo
+    peerRef.current.onicecandidate = (event) => {
+      if (event.candidate) {
+        ws.send(
+          JSON.stringify({
+            type: "ice-candidate",
+            candidate: event.candidate,
+          }),
+        );
+      }
+    };
+
+    // WebSocket messages handle karo
+    ws.onopen = async () => {
+      console.log("WebSocket connected!");
+      await new Promise((resolve) => setTimeout(resolve, 500)); // 👈 add karo
+
+      // Offer banao aur bhejo
       const offer = await peerRef.current.createOffer();
       await peerRef.current.setLocalDescription(offer);
-      ws.send(JSON.stringify({
-        type: "offer",
-        sdp: offer.sdp
-      }));
-      console.log("Customer ko offer bheja!");
-    }
-  } else if (message.type === "answer") {
-    await peerRef.current.setRemoteDescription(
-      new RTCSessionDescription({
-        type: "answer",
-        sdp: message.sdp
-      })
-    );
-    console.log("Answer set ho gaya!");
-  } else if (message.type === "ice-candidate") {
-    await peerRef.current.addIceCandidate(
-      new RTCIceCandidate(message.candidate)
-    );
-  }
-};
 
-  ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
+      ws.send(
+        JSON.stringify({
+          type: "offer",
+          sdp: offer,
+        }),
+      );
+    };
+
+    ws.onmessage = async (event) => {
+      const message = JSON.parse(event.data);
+      console.log("Message aaya:", message);
+
+      if (message.type === "peer-joined") {
+        console.log("Peer join ho gaya:", message.role);
+        // Agar customer join hua toh offer bhejo
+        if (message.role === "customer") {
+          const offer = await peerRef.current.createOffer();
+          await peerRef.current.setLocalDescription(offer);
+          ws.send(
+            JSON.stringify({
+              type: "offer",
+              sdp: offer.sdp,
+            }),
+          );
+          console.log("Customer ko offer bheja!");
+        }
+      } else if (message.type === "answer") {
+        await peerRef.current.setRemoteDescription(
+          new RTCSessionDescription({
+            type: "answer",
+            sdp: message.sdp,
+          }),
+        );
+        console.log("Answer set ho gaya!");
+      } else if (message.type === "ice-candidate") {
+        await peerRef.current.addIceCandidate(
+          new RTCIceCandidate(message.candidate),
+        );
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error("WebSocket error:", error);
+    };
+
+    ws.onclose = () => {
+      console.log("WebSocket disconnected");
+    };
   };
 
-  ws.onclose = () => {
-    console.log("WebSocket disconnected");
-  };
-};
+  useEffect(() => {
+    if (!callStarted || !roomId) return;
 
-useEffect(() => {
-  if (!callStarted || !roomId) return;
+    const joinAsAgent = async () => {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        agentVideoRef.current.srcObject = stream;
+        agentVideoRef.current.muted = true;
+        localStreamRef.current = stream;
+        await startWebRTC(stream, roomId);
+        setIsCallActive(true);
+      } catch (error) {
+        console.error("Error:", error);
+      }
+    };
 
-  const joinAsAgent = async () => {
-    try {
-      const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
-      });
-      agentVideoRef.current.srcObject = stream;
-      agentVideoRef.current.muted = true;
-      await startWebRTC(stream, roomId);
-      setIsCallActive(true);
-    } catch (error) {
-      console.error("Error:", error);
-    }
-  };
-
-  joinAsAgent();
-}, [callStarted]);
+    joinAsAgent();
+  }, [callStarted]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
@@ -284,37 +303,41 @@ useEffect(() => {
         >
           <div className="flex-1 p-2 sm:p-4 lg:p-6 overflow-hidden flex flex-col">
             <div className="flex-1 bg-gray-900 rounded-2xl lg:rounded-[2.5rem] relative overflow-hidden shadow-2xl border-4 border-white">
-              <div className="absolute inset-0 flex items-center justify-center z-10">
+              <div className="absolute inset-0 ">
                 {!callStarted ? (
-  // Input Box
-  <div className="flex flex-col items-center justify-center gap-4 p-6 relative z-20">
-    <p className="text-white font-bold text-lg">Customer Room ID daalo</p>
-    <input
-      type="text"
-      placeholder="acc-xxxxxx"
-      value={roomId}
-      onChange={(e) => setRoomId(e.target.value)}
-      className="border-2 border-orange-500 p-3 rounded-xl w-72 text-sm text-gray-900 outline-none text-center font-bold"
-    />
-    <button
-      onClick={() => setCallStarted(true)}
-      className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-xl font-bold text-sm transition-all"
-    >
-      Call Join Karo 🎥
-    </button>
-  </div>
-) : (
-  <video
-    ref={customerVideoRef}
-    autoPlay
-    playsInline
-    className="w-full h-full object-cover"
-  />
-)}
+                  <div className="flex flex-col items-center justify-center gap-4 p-6">
+                    <p className="text-white font-bold text-lg">
+                      Customer Room ID daalo
+                    </p>
+
+                    <input
+                      type="text"
+                      placeholder="acc-xxxxxx"
+                      value={roomId}
+                      onChange={(e) => setRoomId(e.target.value)}
+                      className="border-2 border-orange-500 p-3 rounded-xl w-72 text-sm text-gray-900 bg-white outline-none text-center font-bold"
+                    />
+
+                    <button
+                      onClick={() => setCallStarted(true)}
+                      className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-xl font-bold text-sm"
+                    >
+                      Call Join Karo 🎥
+                    </button>
+                  </div>
+                ) : (
+                  <video
+                    ref={customerVideoRef}
+                    autoPlay
+                    playsInline
+                    controls={false}
+                    className="w-full h-full object-cover"
+                  />
+                )}
               </div>
 
               {/* Agent PIP customerVideoRef */}
-              <div className="absolute top-4 right-4 lg:top-8 lg:right-8 w-28 h-40 lg:w-44 lg:h-60 bg-gray-800 rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden backdrop-blur-sm">
+              <div className="absolute top-4 right-4 lg:top-8 lg:right-8 w-28 h-40 lg:w-44 lg:h-60 bg-gray-800 rounded-2xl border-2 border-white/10 shadow-2xl overflow-hidden backdrop-blur-sm z-20">
                 <video
                   ref={agentVideoRef}
                   autoPlay
@@ -325,10 +348,15 @@ useEffect(() => {
               </div>
 
               {/* Action Controls */}
-              <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/5 backdrop-blur-2xl p-3 lg:p-4 rounded-[2.5rem] border border-white/10 shadow-2xl">
+              <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/5 backdrop-blur-2xl p-3 lg:p-4 rounded-[2.5rem] border border-white/10 shadow-2xl z-30">
                 <ControlButton icon={<Camera size={20} />} label="Capture" />
                 <ControlButton icon={<FileCheck size={20} />} label="PAN" />
-                <ControlButton icon={<Mic size={20} />} label="Mute" />
+                <ControlButton
+                  icon={<Mic size={20} />}
+                  label={isMuted ? "Unmute" : "Mute"}
+                  onClick={toggleMute}
+                  active={isMuted}
+                />
                 <div className="h-10 w-1 bg-white/10 mx-1"></div>
                 <button className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90">
                   <PhoneOff size={24} />
@@ -430,10 +458,15 @@ function TabButton({ active, onClick, icon, label }) {
   );
 }
 
-function ControlButton({ icon, label }) {
+function ControlButton({ icon, label, onClick, active }) {
   return (
-    <button className="flex flex-col items-center gap-2 text-white/70 hover:text-white transition-all group">
-      <div className="w-10 h-10 lg:w-12 lg:h-12 bg-white/10 group-hover:bg-white/20 rounded-xl lg:rounded-[1.25rem] flex items-center justify-center transition-all border border-white/5">
+    <button
+      onClick={onClick}
+      className="flex flex-col items-center gap-2 text-white/70 hover:text-white transition-all group"
+    >
+      <div
+        className={`w-10 h-10 lg:w-12 lg:h-12 ${active ? "bg-red-500" : "bg-white/10 group-hover:bg-white/20"} rounded-xl lg:rounded-[1.25rem] flex items-center justify-center transition-all border border-white/5`}
+      >
         {icon}
       </div>
       <span className="text-[9px] lg:text-[10px] font-bold uppercase tracking-widest opacity-80">

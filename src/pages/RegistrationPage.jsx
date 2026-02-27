@@ -419,7 +419,7 @@ export default function RegistrationPage() {
             style={{ fontFamily: "Georgia, serif", fontSize: "clamp(38px, 3.5vw, 56px)", fontWeight: 900 }}
           >
             Banking<br />
-            <span style={{ WebkitTextStroke: "1.5px #fb923c", color: "transparent" }}>Reimagined</span><br />
+            <span >Reimagined</span><br />
             For You.
           </h2>
 
