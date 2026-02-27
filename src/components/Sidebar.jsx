@@ -38,6 +38,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
 
   const menuItems = [
     { icon: <LayoutDashboard size={22} />, label: "Video Kyc", path: "/videokyc" },
+    { icon: <LayoutDashboard size={22} />, label: "Agent video kyc", path: "/agentvideokyc" },
     { icon: <Cog size={22} />, label: "Operation", path: "/operation" },
     { icon: <Globe size={22} />, label: "Global", path: "/global" },
     { icon: <User size={22} />, label: "Customer", path: "/customer" },

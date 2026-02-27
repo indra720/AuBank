@@ -19,6 +19,7 @@ import InternalAudit from "./pages/InternalAuditDashboard";
 import LoginPage from "./pages/LoginPage";
 import RegistrationPage from "./pages/RegistrationPage";
 import VideoKyc from "./pages/VideoKyc";
+import AgentVideokyc from "./pages/AgentVideokyc";
 
 
 function App() {
@@ -33,6 +34,7 @@ function App() {
         <Route path="/" element={<DashboardLayout />}>
           <Route index element={<VideoKyc/>} />
           <Route path="videokyc" element={<VideoKyc/>} />
+          <Route path="agentvideokyc" element={<AgentVideokyc/>} />
           <Route path="operation" element={<OperationDashboard />} />
           <Route path="global" element={<GlobalDashboard />} />
           <Route path="customer" element={<Customer />} />
