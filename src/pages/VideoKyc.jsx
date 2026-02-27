@@ -30,6 +30,8 @@ function VideoKyc() {
   const [isMuted, setIsMuted] = useState(false);
   const localStreamRef = useRef(null);
 
+  const wsRef = useRef(null);
+
   const toggleMute = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach((track) => {
@@ -39,6 +41,28 @@ function VideoKyc() {
     }
   };
 
+  const endCall = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "call-ended" }));
+      // Pehle message jaane do, phir 200ms baad close karo
+      setTimeout(() => {
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setIsCallActive(false);
+      }, 200);
+    } else {
+      setIsCallActive(false);
+    }
+  };
 
   const startWebRTC = async (stream, roomId) => {
     console.log("Joining room:", roomId);
@@ -50,6 +74,8 @@ function VideoKyc() {
     const ws = new WebSocket(
       `ws://192.168.1.7:8000/ws/${roomId}/1?token=${customerToken}`,
     );
+
+    wsRef.current = ws;
 
     // RTCPeerConnection banao
     peerRef.current = new RTCPeerConnection({
@@ -99,6 +125,25 @@ function VideoKyc() {
     ws.onmessage = async (event) => {
       const message = JSON.parse(event.data);
       console.log("Message aaya:", message);
+
+     if (message.type === "call-ended") {
+  // Turant video blackout
+  if (agentVideoRef.current) {
+    agentVideoRef.current.srcObject = null;
+  }
+  if (customerVideoRef.current) {
+    customerVideoRef.current.srcObject = null;
+  }
+  if (localStreamRef.current) {
+    localStreamRef.current.getTracks().forEach((track) => track.stop());
+  }
+  if (peerRef.current) {
+    peerRef.current.close();
+    peerRef.current = null;
+  }
+  setIsCallActive(false);
+  return;
+}
 
       if (message.type === "offer") {
         console.log("Offer mila, answer bhej raha hoon!");
@@ -335,16 +380,15 @@ function VideoKyc() {
         {/* 2. CENTER PANEL - VIDEO */}
         <main
           className={`
-              flex-1 flex flex-col min-w-0 bg-gray-100
+              flex-1 flex flex-col min-w-0 bg-  
               ${activeTab === "call" ? "flex" : "hidden lg:flex"}
             `}
         >
           <div className="flex-1 p-2 sm:p-4 lg:p-6 overflow-hidden flex flex-col">
             <div className="flex-1 bg-gray-900 rounded-2xl lg:rounded-[2.5rem] relative overflow-hidden shadow-2xl border-4 border-white">
               <div className="absolute inset-0 flex items-center justify-center">
-                {true ? (
+                {isCallActive ? (
                   // Live Call View
-
                   <video
                     ref={agentVideoRef}
                     autoPlay
@@ -352,13 +396,13 @@ function VideoKyc() {
                     className="w-full h-full object-cover"
                   />
                 ) : (
-                  // Waiting View
+                  // Waiting View / Call Ended View
                   <div className="text-center">
                     <div className="w-16 h-16 lg:w-24 lg:h-24 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
                       <Video className="text-gray-600" size={32} />
                     </div>
                     <p className="text-gray-400 text-sm font-medium">
-                      Waiting for customer video...
+                      Call ended
                     </p>
                   </div>
                 )}
@@ -380,13 +424,16 @@ function VideoKyc() {
                 <ControlButton icon={<Camera size={20} />} label="Capture" />
                 <ControlButton icon={<FileCheck size={20} />} label="PAN" />
                 <ControlButton
-                                  icon={<Mic size={20} />}
-                                  label={isMuted ? "Unmute" : "Mute"}
-                                  onClick={toggleMute}
-                                  active={isMuted}
-                                />
+                  icon={<Mic size={20} />}
+                  label={isMuted ? "Unmute" : "Mute"}
+                  onClick={toggleMute}
+                  active={isMuted}
+                />
                 <div className="h-10 w-1 bg-white/10 mx-1"></div>
-                <button className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90">
+                <button
+                  onClick={endCall}
+                  className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90"
+                >
                   <PhoneOff size={24} />
                 </button>
               </div>

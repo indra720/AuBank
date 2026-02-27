@@ -32,12 +32,38 @@ function AgentVideokyc() {
   const [isMuted, setIsMuted] = useState(false);
   const localStreamRef = useRef(null);
 
+  const wsRef = useRef(null);
+
   const toggleMute = () => {
     if (localStreamRef.current) {
       localStreamRef.current.getAudioTracks().forEach((track) => {
         track.enabled = !track.enabled;
       });
       setIsMuted((prev) => !prev);
+    }
+  };
+
+  const endCall = () => {
+    if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({ type: "call-ended" }));
+      setTimeout(() => {
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setCallStarted(false);
+        setRoomId("");
+      }, 200);
+    } else {
+      setCallStarted(false);
+      setRoomId("");
     }
   };
 
@@ -50,6 +76,7 @@ function AgentVideokyc() {
     const ws = new WebSocket(
       `ws://192.168.1.7:8000/ws/${roomId}/2?token=${agentToken}`,
     );
+    wsRef.current = ws;
 
     // RTCPeerConnection banao
     peerRef.current = new RTCPeerConnection({
@@ -99,6 +126,26 @@ function AgentVideokyc() {
     ws.onmessage = async (event) => {
       const message = JSON.parse(event.data);
       console.log("Message aaya:", message);
+
+      if (message.type === "call-ended") {
+        // Turant video blackout
+        if (customerVideoRef.current) {
+          customerVideoRef.current.srcObject = null;
+        }
+        if (agentVideoRef.current) {
+          agentVideoRef.current.srcObject = null;
+        }
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+        }
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+        setCallStarted(false);
+        setRoomId("");
+        return;
+      }
 
       if (message.type === "peer-joined") {
         console.log("Peer join ho gaya:", message.role);
@@ -358,7 +405,10 @@ function AgentVideokyc() {
                   active={isMuted}
                 />
                 <div className="h-10 w-1 bg-white/10 mx-1"></div>
-                <button className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90">
+                <button
+                  onClick={endCall}
+                  className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90"
+                >
                   <PhoneOff size={24} />
                 </button>
               </div>
