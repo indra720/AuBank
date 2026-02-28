@@ -12,6 +12,7 @@ import {
   ClipboardCheck,
   Search,
   RefreshCw,
+  X,
 } from "lucide-react";
 
 function AgentVideokyc() {
@@ -26,7 +27,80 @@ function AgentVideokyc() {
   const customerVideoRef = useRef(null);
 
   const [isMuted, setIsMuted] = useState(false);
+  const [isCapturing, setIsCapturing] = useState(false);
+  const [capturedImage, setCapturedImage] = useState(null);
+  const [showPopup, setShowPopup] = useState(false);
+  const [captureLabel, setCaptureLabel] = useState("");
+  const [instruction, setInstruction] = useState("");
   const localStreamRef = useRef(null);
+
+  const handleCapture = async (label) => {
+    if (!customerVideoRef.current || !roomId) {
+      alert("No active session to capture.");
+      return;
+    }
+
+    setIsCapturing(true);
+    
+    // Instruction sequence for Face capture
+    if (label === "Customer Face") {
+      setInstruction("Please look LEFT...");
+      await new Promise(r => setTimeout(r, 1000));
+      setInstruction("Please look RIGHT...");
+      await new Promise(r => setTimeout(r, 1000));
+      setInstruction("Look STRAIGHT and SMILE!");
+      await new Promise(r => setTimeout(r, 800));
+    } else {
+      setInstruction("Capturing PAN Card...");
+      await new Promise(r => setTimeout(r, 500));
+    }
+
+    try {
+      const video = customerVideoRef.current;
+      if (video.readyState < 2) {
+        alert("Video stream not ready. Please try again in a second.");
+        return;
+      }
+
+      const canvas = document.createElement("canvas");
+      // Set canvas size to match the actual video stream dimensions
+      canvas.width = video.videoWidth || 1280;
+      canvas.height = video.videoHeight || 720;
+      
+      const ctx = canvas.getContext("2d");
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      
+      const imageData = canvas.toDataURL("image/jpeg", 0.9);
+      console.log("Capture successful, data length:", imageData.length);
+      
+      if (imageData.length < 100) {
+        throw new Error("Captured image is empty or invalid.");
+      }
+
+      setCapturedImage(imageData);
+      setCaptureLabel(label);
+      setShowPopup(true);
+      
+      const agentToken = localStorage.getItem("access_token");
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/session/capture`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${agentToken}`
+        },
+        body: JSON.stringify({
+          room_id: roomId,
+          label: label,
+          image_data: imageData
+        })
+      });
+    } catch (error) {
+      console.error("Error capturing image:", error);
+    } finally {
+      setIsCapturing(false);
+      setInstruction("");
+    }
+  };
 
   const wsRef = useRef(null);
 
@@ -478,9 +552,19 @@ function AgentVideokyc() {
                     ref={customerVideoRef}
                     autoPlay
                     playsInline
-                    controls={false}
+                    muted={false}
+                    crossOrigin="anonymous"
                     className="w-full h-full object-cover"
                   />
+                )}
+                
+                {/* Instruction Overlay */}
+                {instruction && (
+                  <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
+                    <div className="bg-orange-600 text-white px-6 py-3 rounded-2xl font-bold text-lg shadow-2xl animate-bounce border-2 border-white/20">
+                      {instruction}
+                    </div>
+                  </div>
                 )}
               </div>
 
@@ -497,8 +581,16 @@ function AgentVideokyc() {
 
               {/* Action Controls */}
               <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/5 backdrop-blur-2xl p-3 lg:p-4 rounded-[2.5rem] border border-white/10 shadow-2xl z-30">
-                <ControlButton icon={<Camera size={20} />} label="Capture" />
-                <ControlButton icon={<FileCheck size={20} />} label="PAN" />
+                <ControlButton 
+                  icon={<Camera size={20} />} 
+                  label={isCapturing ? "..." : "Capture"} 
+                  onClick={() => handleCapture("Customer Face")}
+                />
+                <ControlButton 
+                  icon={<FileCheck size={20} />} 
+                  label={isCapturing ? "..." : "PAN"} 
+                  onClick={() => handleCapture("PAN Card")}
+                />
                 <ControlButton
                   icon={<Mic size={20} />}
                   label={isMuted ? "Unmute" : "Mute"}
@@ -589,6 +681,54 @@ function AgentVideokyc() {
           </div>
         </aside>
       </div>
+
+      {/* --- CAPTURE PREVIEW MODAL --- */}
+      {showPopup && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+          <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl border border-white/20 scale-in-center transition-all">
+            <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
+              <div>
+                <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Capture Successful</p>
+                <h3 className="text-xl font-bold text-gray-900">{captureLabel}</h3>
+              </div>
+              <button 
+                onClick={() => setShowPopup(false)}
+                className="p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors"
+              >
+                <X size={24} />
+              </button>
+            </div>
+            
+            <div className="p-8 bg-gray-100">
+              <div className="aspect-video bg-gray-200 rounded-3xl overflow-hidden border-4 border-white shadow-inner relative group">
+                <img 
+                  src={capturedImage} 
+                  alt="Captured" 
+                  className="w-full h-full object-cover"
+                />
+                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                  <span className="text-white text-[10px] font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-3 py-1 rounded-full">Preview</span>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-6 bg-white flex gap-3">
+              <button 
+                onClick={() => setShowPopup(false)}
+                className="flex-1 py-4 text-gray-500 font-bold text-sm hover:bg-gray-50 rounded-2xl transition-all"
+              >
+                Discard
+              </button>
+              <button 
+                onClick={() => setShowPopup(false)}
+                className="flex-[2] py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-600/20 transition-all active:scale-95"
+              >
+                Save & Continue
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
