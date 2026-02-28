@@ -15,13 +15,8 @@ import {
 
 function AgentVideokyc() {
   const [activeTab, setActiveTab] = useState("call"); // 'queue', 'call', 'data'
-  const [currentCustomer] = useState({
-    name: "Rajesh Kumar",
-    id: "V-KYC-952810",
-    dob: "12/05/1988",
-    address:
-      "Flat 402, Sunshine Apartments, Sector 15, Dwarka, New Delhi - 110075",
-  });
+  const [pendingKycRequests, setPendingKycRequests] = useState([]);
+  const [currentCustomer, setCurrentCustomer] = useState(null);
   const [isCallActive, setIsCallActive] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [callStarted, setCallStarted] = useState(false);
@@ -205,7 +200,34 @@ function AgentVideokyc() {
     };
 
     joinAsAgent();
-  }, [callStarted]);
+  }, [callStarted, roomId]); // Added roomId to dependency array
+
+  useEffect(() => {
+    const fetchPendingKycRequests = async () => {
+      try {
+        const response = await fetch("http://192.168.1.7:8000/api/kyc/pending");
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const data = await response.json();
+        setPendingKycRequests(data);
+        // Set the first customer as current customer if available
+        if (data.length > 0) {
+          setCurrentCustomer({
+            name: `Customer ${data[0].customer_id}`, // Placeholder name
+            id: data[0].room_id,
+            dob: "N/A", // Placeholder
+            address: "N/A", // Placeholder
+            ...data[0] // Add all other properties from API
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching pending KYC requests:", error);
+      }
+    };
+
+    fetchPendingKycRequests();
+  }, []); // Run once on component mount
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
@@ -295,40 +317,89 @@ function AgentVideokyc() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 shadow-sm">
-              <div className="flex justify-between items-start text-[10px] font-bold">
-                <span className="text-orange-600 uppercase">
-                  Current Session
-                </span>
-                <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                  Active
-                </span>
+            {currentCustomer ? (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 shadow-sm">
+                <div className="flex justify-between items-start text-[10px] font-bold">
+                  <span className="text-orange-600 uppercase">
+                    Current Session
+                  </span>
+                  <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
+                    Active
+                  </span>
+                </div>
+                <h3 className="font-bold text-gray-900 mt-1">
+                  {currentCustomer.name}
+                </h3>
+                <p className="text-[11px] text-gray-600">
+                  {currentCustomer.service_type || "N/A"}
+                </p>
+                <p className="text-[11px] text-gray-600">
+                  Room ID: {currentCustomer.room_id}
+                </p>
               </div>
-              <h3 className="font-bold text-gray-900 mt-1">
-                {currentCustomer.name}
-              </h3>
-              <p className="text-[11px] text-gray-600">Savings Account Alpha</p>
-            </div>
+            ) : (
+              <div className="bg-gray-50 border border-gray-200 rounded-xl p-3 shadow-sm text-center text-gray-500 text-sm">
+                No active session. Select a customer from the queue.
+              </div>
+            )}
 
-            {[
-              { name: "Priya Sharma", id: "V-KYC-045245", time: "04:20" },
-              { name: "Amit Soni", id: "IND-099246", time: "08:15" },
-              { name: "Suresh Raina", id: "V-KYC-045248", time: "12:10" },
-            ].map((item, i) => (
+            {pendingKycRequests.map((item) => (
               <div
-                key={i}
+                key={item.id}
                 className="p-3 rounded-xl border border-gray-100 bg-white hover:border-orange-200 transition-all cursor-pointer group"
+                onClick={async () => {
+                  try {
+                    const response = await fetch(
+                      `http://192.168.1.7:8000/api/kyc/accept/${item.room_id}`,
+                      {
+                        method: "POST",
+                        headers: {
+                          "Content-Type": "application/json",
+                          "Authorization": `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBZ2VudF9BYWthc2giLCJyb2xlIjoiYWdlbnQiLCJleHAiOjE3NzIyODMyMjl9.qu_zE8g2aD11GfrI8HVKh0nOu627FBZvUSSUq1Bwi88` // Add the provided token here
+                        },
+                        body: JSON.stringify({
+                          agent_id: "your_agent_id", // Replace with actual agent ID (or remove if not needed, as token might identify agent)
+                          // Add any other required body parameters here
+                        }),
+                      },
+                    );
+
+                    if (!response.ok) {
+                      throw new Error(
+                        `Failed to accept KYC request: ${response.status}`,
+                      );
+                    }
+
+                    // If POST is successful, then proceed to start the call
+                    setRoomId(item.room_id);
+                    setCallStarted(true);
+                    // Update currentCustomer when clicked
+                    setCurrentCustomer({
+                      name: `Customer ${item.customer_id}`, // Placeholder name
+                      id: item.room_id,
+                      dob: "N/A", // Placeholder
+                      address: "N/A", // Placeholder
+                      ...item,
+                    });
+                  } catch (error) {
+                    console.error("Error accepting KYC request:", error);
+                    alert("Failed to accept KYC request. Please try again.");
+                  }
+                }}
               >
                 <div className="flex justify-between items-start">
                   <h4 className="font-semibold text-gray-800 text-sm group-hover:text-orange-600">
-                    {item.name}
+                    Customer {item.customer_id}
                   </h4>
                   <span className="text-[10px] text-gray-400 font-medium">
-                    {item.time}
+                    {new Date(item.requested_at).toLocaleTimeString()}
                   </span>
                 </div>
                 <p className="text-[11px] text-gray-500 mt-0.5">
-                  ID: {item.id}
+                  Room ID: {item.room_id}
+                </p>
+                <p className="text-[11px] text-gray-500 mt-0.5">
+                  Service Type: {item.service_type}
                 </p>
               </div>
             ))}
@@ -354,23 +425,8 @@ function AgentVideokyc() {
                 {!callStarted ? (
                   <div className="flex flex-col items-center justify-center gap-4 p-6">
                     <p className="text-white font-bold text-lg">
-                      Customer Room ID daalo
+                      Select a customer from the Live Queue to start the call.
                     </p>
-
-                    <input
-                      type="text"
-                      placeholder="acc-xxxxxx"
-                      value={roomId}
-                      onChange={(e) => setRoomId(e.target.value)}
-                      className="border-2 border-orange-500 p-3 rounded-xl w-72 text-sm text-gray-900 bg-white outline-none text-center font-bold"
-                    />
-
-                    <button
-                      onClick={() => setCallStarted(true)}
-                      className="bg-orange-600 hover:bg-orange-700 text-white px-8 py-3 rounded-xl font-bold text-sm"
-                    >
-                      Call Join Karo 🎥
-                    </button>
                   </div>
                 ) : (
                   <video
@@ -436,20 +492,20 @@ function AgentVideokyc() {
             <div className="space-y-6">
               <DataRow
                 label="Customer Full Name"
-                value={currentCustomer.name}
-                matched
+                value={currentCustomer?.name || "N/A"}
+                matched={!!currentCustomer?.name}
               />
               <DataRow
                 label="Date of Birth"
-                value={currentCustomer.dob}
-                matched
+                value={currentCustomer?.dob || "N/A"}
+                matched={!!currentCustomer?.dob}
               />
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
                   Address (Aadhaar)
                 </p>
                 <div className="text-xs text-gray-700 font-semibold bg-gray-50 p-4 rounded-xl border border-gray-100">
-                  {currentCustomer.address}
+                  {currentCustomer?.address || "N/A"}
                 </div>
               </div>
 
