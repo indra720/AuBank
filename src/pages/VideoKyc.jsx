@@ -23,6 +23,7 @@ function VideoKyc() {
       "Flat 402, Sunshine Apartments, Sector 15, Dwarka, New Delhi - 110075",
   });
   const [isCallActive, setIsCallActive] = useState(false);
+  const [connectedAgent, setConnectedAgent] = useState(null);
   const agentVideoRef = useRef(null);
   const peerRef = useRef(null);
   const customerVideoRef = useRef(null);
@@ -126,24 +127,31 @@ function VideoKyc() {
       const message = JSON.parse(event.data);
       console.log("Message aaya:", message);
 
-     if (message.type === "call-ended") {
-  // Turant video blackout
-  if (agentVideoRef.current) {
-    agentVideoRef.current.srcObject = null;
-  }
-  if (customerVideoRef.current) {
-    customerVideoRef.current.srcObject = null;
-  }
-  if (localStreamRef.current) {
-    localStreamRef.current.getTracks().forEach((track) => track.stop());
-  }
-  if (peerRef.current) {
-    peerRef.current.close();
-    peerRef.current = null;
-  }
-  setIsCallActive(false);
-  return;
-}
+      if (message.type === "call-ended" || message.type === "close-session") {
+        console.log("Session closing, clearing videos...");
+        // Turant video blackout
+        if (agentVideoRef.current) {
+          agentVideoRef.current.srcObject = null;
+        }
+        if (customerVideoRef.current) {
+          customerVideoRef.current.srcObject = null;
+        }
+        if (localStreamRef.current) {
+          localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
+        }
+        if (peerRef.current) {
+          peerRef.current.close();
+          peerRef.current = null;
+        }
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
+        setIsCallActive(false);
+        setConnectedAgent(null);
+        return;
+      }
 
       if (message.type === "offer") {
         console.log("Offer mila, answer bhej raha hoon!");
@@ -161,6 +169,14 @@ function VideoKyc() {
         console.log("Answer bhej diya!");
       } else if (message.type === "peer-joined") {
         console.log("Peer join ho gaya:", message.role);
+        
+        if (message.role === "agent") {
+          setConnectedAgent({
+            id: message.agent_id || "88442",
+            status: "Active"
+          });
+        }
+
         if (message.role === "customer") {
           const offer = await peerRef.current.createOffer();
           await peerRef.current.setLocalDescription(offer);
@@ -336,43 +352,53 @@ function VideoKyc() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 shadow-sm">
-              <div className="flex justify-between items-start text-[10px] font-bold">
-                <span className="text-orange-600 uppercase">
-                  Current Session
-                </span>
-                <span className="text-green-700 bg-green-100 px-1.5 py-0.5 rounded">
-                  Active
-                </span>
-              </div>
-              <h3 className="font-bold text-gray-900 mt-1">
-                {currentCustomer.name}
-              </h3>
-              <p className="text-[11px] text-gray-600">Savings Account Alpha</p>
-            </div>
-
-            {[
-              { name: "Priya Sharma", id: "V-KYC-045245", time: "04:20" },
-              { name: "Amit Soni", id: "IND-099246", time: "08:15" },
-              { name: "Suresh Raina", id: "V-KYC-045248", time: "12:10" },
-            ].map((item, i) => (
-              <div
-                key={i}
-                className="p-3 rounded-xl border border-gray-100 bg-white hover:border-orange-200 transition-all cursor-pointer group"
-              >
-                <div className="flex justify-between items-start">
-                  <h4 className="font-semibold text-gray-800 text-sm group-hover:text-orange-600">
-                    {item.name}
-                  </h4>
-                  <span className="text-[10px] text-gray-400 font-medium">
-                    {item.time}
+            {isCallActive ? (
+              <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 shadow-sm">
+                <div className="flex justify-between items-start text-[10px] font-bold">
+                  <span className="text-orange-600 uppercase">
+                    {connectedAgent ? "Agent Connected" : "Request Sent"}
+                  </span>
+                  <span className={`px-1.5 py-0.5 rounded ${connectedAgent ? "text-green-700 bg-green-100 animate-pulse" : "text-blue-700 bg-blue-100"}`}>
+                    {connectedAgent ? "Active" : "In Queue"}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  ID: {item.id}
-                </p>
+                <h3 className="font-bold text-gray-900 mt-1">
+                  {connectedAgent ? `Connected with Agent #${connectedAgent.id}` : "Waiting for Agent..."}
+                </h3>
+                <p className="text-[11px] text-gray-600">Savings Account Alpha</p>
               </div>
-            ))}
+            ) : (
+              <div className="p-3 bg-gray-50 border border-gray-100 rounded-xl text-center">
+                <p className="text-[11px] text-gray-400 font-medium">No active verification session.</p>
+              </div>
+            )}
+
+            <div className="pt-2">
+              <h4 className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-3">Upcoming Queue</h4>
+              <div className="space-y-3">
+                {[
+                  { name: "Priya Sharma", id: "V-KYC-045245", time: "04:20" },
+                  { name: "Amit Soni", id: "IND-099246", time: "08:15" },
+                ].map((item, i) => (
+                  <div
+                    key={i}
+                    className="p-3 rounded-xl border border-gray-100 bg-white hover:border-orange-200 transition-all cursor-pointer group"
+                  >
+                    <div className="flex justify-between items-start">
+                      <h4 className="font-semibold text-gray-800 text-sm group-hover:text-orange-600">
+                        {item.name}
+                      </h4>
+                      <span className="text-[10px] text-gray-400 font-medium">
+                        {item.time}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-gray-500 mt-0.5">
+                      ID: {item.id}
+                    </p>
+                  </div>
+                ))}
+              </div>
+            </div>
           </div>
 
           <div className="p-4 border-t border-gray-200">

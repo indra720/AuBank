@@ -11,6 +11,7 @@ import {
   Users,
   ClipboardCheck,
   Search,
+  RefreshCw,
 } from "lucide-react";
 
 function AgentVideokyc() {
@@ -126,7 +127,8 @@ function AgentVideokyc() {
       const message = JSON.parse(event.data);
       console.log("Message aaya:", message);
 
-      if (message.type === "call-ended") {
+      if (message.type === "call-ended" || message.type === "close-session") {
+        console.log("Session closing, clearing videos...");
         // Turant video blackout
         if (customerVideoRef.current) {
           customerVideoRef.current.srcObject = null;
@@ -136,12 +138,19 @@ function AgentVideokyc() {
         }
         if (localStreamRef.current) {
           localStreamRef.current.getTracks().forEach((track) => track.stop());
+          localStreamRef.current = null;
         }
         if (peerRef.current) {
           peerRef.current.close();
           peerRef.current = null;
         }
+        if (wsRef.current) {
+          wsRef.current.close();
+          wsRef.current = null;
+        }
         setCallStarted(false);
+        setIsCallActive(false);
+        setCurrentCustomer(null);
         setRoomId("");
         return;
       }
@@ -210,31 +219,36 @@ function AgentVideokyc() {
     joinAsAgent();
   }, [callStarted, roomId]); // Added roomId to dependency array
 
-  useEffect(() => {
-    const fetchPendingKycRequests = async () => {
-      const agentToken = localStorage.getItem("access_token");
-      try {
-        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/kyc/pending`, {
-          headers: {
-            "Authorization": `Bearer ${agentToken}`
-          }
-        });
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
+  const fetchPendingKycRequests = async () => {
+    const agentToken = localStorage.getItem("access_token");
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/kyc/pending`, {
+        headers: {
+          "Authorization": `Bearer ${agentToken}`
         }
-        const data = await response.json();
-        setPendingKycRequests(data);
-        
-        // Removed auto-setting of currentCustomer here
-      } catch (error) {
-        console.error("Error fetching pending KYC requests:", error);
+      });
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-    };
+      const data = await response.json();
+      setPendingKycRequests(data);
+    } catch (error) {
+      console.error("Error fetching pending KYC requests:", error);
+    }
+  };
 
+  useEffect(() => {
     fetchPendingKycRequests();
-    const interval = setInterval(fetchPendingKycRequests, 3000); // Poll every 3 seconds
-    return () => clearInterval(interval); // Cleanup on unmount
-  }, [callStarted, currentCustomer]);
+    
+    // Smart Polling: Only poll if NOT in a call and window is active
+    const interval = setInterval(() => {
+      if (!callStarted) {
+        fetchPendingKycRequests();
+      }
+    }, 10000); // 10 seconds is very safe for the backend
+
+    return () => clearInterval(interval);
+  }, [callStarted]); // Re-evaluate when call state changes
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
@@ -314,13 +328,21 @@ function AgentVideokyc() {
           ${activeTab === "queue" ? "flex" : "hidden lg:flex"}
         `}
         >
-          <div className="p-4 border-b border-gray-200">
+          <div className="p-4 border-b border-gray-200 flex items-center justify-between">
             <div className="flex items-center gap-2">
               <span className="flex h-2 w-2 rounded-full bg-orange-600 animate-pulse"></span>
               <h2 className="font-bold text-gray-800 text-sm tracking-wider uppercase">
                 Live Queue
               </h2>
+              <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest bg-green-50 px-1 rounded ml-1">Live</span>
             </div>
+            <button 
+              onClick={fetchPendingKycRequests}
+              className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-orange-600 transition-all active:rotate-180"
+              title="Refresh Queue"
+            >
+              <RefreshCw size={16} />
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
