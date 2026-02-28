@@ -67,12 +67,12 @@ function VideoKyc() {
   const startWebRTC = async (stream, roomId) => {
     console.log("Joining room:", roomId);
 
-    const customerToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ODc2NTQzMjEwIiwicm9sZSI6ImN1c3RvbWVyIiwiZXhwIjoxNzcyMjU1NjQwfQ.B4nkY8HPbT0G4H16soButXXQlpsjkL7krSTQcobYU-k";
+    const access_token = localStorage.getItem("access_token");
 
     // WebSocket connect karo
+    const wsBaseUrl = import.meta.env.VITE_BACKEND_URL.replace(/^http/, "ws").replace(/\/$/, "");
     const ws = new WebSocket(
-      `ws://192.168.1.7:8000/ws/${roomId}/1?token=${customerToken}`,
+      `${wsBaseUrl}/ws/${roomId}/1?token=${access_token}`,
     );
 
     wsRef.current = ws;
@@ -196,49 +196,54 @@ function VideoKyc() {
     };
   };
 
-  useEffect(() => {
-    const customerToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiI5ODc2NTQzMjEwIiwicm9sZSI6ImN1c3RvbWVyIiwiZXhwIjoxNzcyMjU1NjQwfQ.B4nkY8HPbT0G4H16soButXXQlpsjkL7krSTQcobYU-k";
-    const apiUrl = "http://192.168.1.7:8000/api/services/apply/account";
+  const initiateVideoKyc = async () => {
+    const access_token = localStorage.getItem("access_token");
+    
+    if (!access_token) {
+      alert("Please login first to start Video KYC");
+      return;
+    }
 
-    const initiateVideoKyc = async () => {
-      try {
-        const response = await fetch(apiUrl, {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${customerToken}`,
-          },
-          body: JSON.stringify({ account_type: "savings" }),
-        });
+    try {
+      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/services/apply/account`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${access_token}`,
+        },
+        body: JSON.stringify({ account_type: "savings" }),
+      });
 
-        if (response.ok) {
-          const data = await response.json();
-          console.log("Room ID:", data.room_id); // ✅ sirf ek baar
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Room ID:", data.room_id);
 
-          // Camera on karo
-          const stream = await navigator.mediaDevices.getUserMedia({
-            video: true,
-            audio: true,
-          });
-          localStreamRef.current = stream;
-          // agentVideoRef.current.srcObject = stream;
-          customerVideoRef.current.srcObject = stream;
-          // WebRTC start karo room_id ke saath
-          await startWebRTC(stream, data.room_id);
-
-          setIsCallActive(true); // ✅ sirf ek baar
-        } else {
-          console.error("API failed:", response.status);
-          setIsCallActive(false);
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert("Camera access is only allowed on HTTPS or localhost. Please check your browser settings.");
+          return;
         }
-      } catch (error) {
-        console.error("Error:", error);
+
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: true,
+          audio: true,
+        });
+        localStreamRef.current = stream;
+        customerVideoRef.current.srcObject = stream;
+        await startWebRTC(stream, data.room_id);
+
+        setIsCallActive(true);
+      } else {
+        console.error("API failed:", response.status);
         setIsCallActive(false);
       }
-    };
+    } catch (error) {
+      console.error("Error:", error);
+      setIsCallActive(false);
+    }
+  };
 
-    initiateVideoKyc();
+  useEffect(() => {
+    // KYC initiation is now handled by the button click
   }, []);
 
   // WebRTC connection
@@ -397,12 +402,18 @@ function VideoKyc() {
                   />
                 ) : (
                   // Waiting View / Call Ended View
-                  <div className="text-center">
+                  <div className="text-center flex flex-col items-center">
                     <div className="w-16 h-16 lg:w-24 lg:h-24 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
                       <Video className="text-gray-600" size={32} />
                     </div>
-                    <p className="text-gray-400 text-sm font-medium">
-                      Call ended
+                    <button
+                      onClick={initiateVideoKyc}
+                      className="px-8 py-3 bg-orange-600 hover:bg-orange-700 text-white rounded-xl font-bold text-sm transition-all shadow-lg shadow-orange-900/20 active:scale-95 mb-2"
+                    >
+                      Start Video KYC
+                    </button>
+                    <p className="text-gray-400 text-xs font-medium">
+                      Ready to start your verification?
                     </p>
                   </div>
                 )}

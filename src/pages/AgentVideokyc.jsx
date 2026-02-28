@@ -54,10 +54,14 @@ function AgentVideokyc() {
           wsRef.current = null;
         }
         setCallStarted(false);
+        setIsCallActive(false);
+        setCurrentCustomer(null);
         setRoomId("");
       }, 200);
     } else {
       setCallStarted(false);
+      setIsCallActive(false);
+      setCurrentCustomer(null);
       setRoomId("");
     }
   };
@@ -65,11 +69,11 @@ function AgentVideokyc() {
   const startWebRTC = async (stream, roomId) => {
     console.log("Joining room:", roomId);
 
-    const agentToken =
-      "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBZ2VudF9BYWthc2giLCJyb2xlIjoiYWdlbnQiLCJleHAiOjE3NzIyNTU1NTd9.OP0jZI-RB9aPSqB9rbCFiypK9hUxOKHgSlc2ecGrHQY";
+    const agentToken = localStorage.getItem("access_token");
     // WebSocket connect karo
+    const wsBaseUrl = import.meta.env.VITE_BACKEND_URL.replace(/^http/, "ws").replace(/\/$/, "");
     const ws = new WebSocket(
-      `ws://192.168.1.7:8000/ws/${roomId}/2?token=${agentToken}`,
+      `${wsBaseUrl}/ws/${roomId}/1?token=${agentToken}`,
     );
     wsRef.current = ws;
 
@@ -185,6 +189,10 @@ function AgentVideokyc() {
 
     const joinAsAgent = async () => {
       try {
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+          alert("Camera access is only allowed on HTTPS or localhost. Please check your browser settings.");
+          return;
+        }
         const stream = await navigator.mediaDevices.getUserMedia({
           video: true,
           audio: true,
@@ -204,30 +212,29 @@ function AgentVideokyc() {
 
   useEffect(() => {
     const fetchPendingKycRequests = async () => {
+      const agentToken = localStorage.getItem("access_token");
       try {
-        const response = await fetch("http://192.168.1.7:8000/api/kyc/pending");
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/kyc/pending`, {
+          headers: {
+            "Authorization": `Bearer ${agentToken}`
+          }
+        });
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
         const data = await response.json();
         setPendingKycRequests(data);
-        // Set the first customer as current customer if available
-        if (data.length > 0) {
-          setCurrentCustomer({
-            name: `Customer ${data[0].customer_id}`, // Placeholder name
-            id: data[0].room_id,
-            dob: "N/A", // Placeholder
-            address: "N/A", // Placeholder
-            ...data[0] // Add all other properties from API
-          });
-        }
+        
+        // Removed auto-setting of currentCustomer here
       } catch (error) {
         console.error("Error fetching pending KYC requests:", error);
       }
     };
 
     fetchPendingKycRequests();
-  }, []); // Run once on component mount
+    const interval = setInterval(fetchPendingKycRequests, 3000); // Poll every 3 seconds
+    return () => clearInterval(interval); // Cleanup on unmount
+  }, [callStarted, currentCustomer]);
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
@@ -317,7 +324,7 @@ function AgentVideokyc() {
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
-            {currentCustomer ? (
+            {callStarted && currentCustomer ? (
               <div className="bg-orange-50 border border-orange-200 rounded-xl p-3 shadow-sm">
                 <div className="flex justify-between items-start text-[10px] font-bold">
                   <span className="text-orange-600 uppercase">
@@ -345,62 +352,78 @@ function AgentVideokyc() {
 
             {pendingKycRequests.map((item) => (
               <div
-                key={item.id}
-                className="p-3 rounded-xl border border-gray-100 bg-white hover:border-orange-200 transition-all cursor-pointer group"
-                onClick={async () => {
-                  try {
-                    const response = await fetch(
-                      `http://192.168.1.7:8000/api/kyc/accept/${item.room_id}`,
-                      {
-                        method: "POST",
-                        headers: {
-                          "Content-Type": "application/json",
-                          "Authorization": `Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJBZ2VudF9BYWthc2giLCJyb2xlIjoiYWdlbnQiLCJleHAiOjE3NzIyODMyMjl9.qu_zE8g2aD11GfrI8HVKh0nOu627FBZvUSSUq1Bwi88` // Add the provided token here
-                        },
-                        body: JSON.stringify({
-                          agent_id: "your_agent_id", // Replace with actual agent ID (or remove if not needed, as token might identify agent)
-                          // Add any other required body parameters here
-                        }),
-                      },
-                    );
-
-                    if (!response.ok) {
-                      throw new Error(
-                        `Failed to accept KYC request: ${response.status}`,
-                      );
-                    }
-
-                    // If POST is successful, then proceed to start the call
-                    setRoomId(item.room_id);
-                    setCallStarted(true);
-                    // Update currentCustomer when clicked
-                    setCurrentCustomer({
-                      name: `Customer ${item.customer_id}`, // Placeholder name
-                      id: item.room_id,
-                      dob: "N/A", // Placeholder
-                      address: "N/A", // Placeholder
-                      ...item,
-                    });
-                  } catch (error) {
-                    console.error("Error accepting KYC request:", error);
-                    alert("Failed to accept KYC request. Please try again.");
-                  }
-                }}
+                key={item.room_id}
+                className={`p-3 rounded-xl border transition-all group ${
+                  roomId === item.room_id ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200" : "border-gray-100 bg-white hover:border-orange-100"
+                }`}
               >
                 <div className="flex justify-between items-start">
-                  <h4 className="font-semibold text-gray-800 text-sm group-hover:text-orange-600">
-                    Customer {item.customer_id}
+                  <h4 className="font-semibold text-gray-800 text-sm">
+                    {item.customer_id ? `Customer ${item.customer_id}` : "KYC Request"}
                   </h4>
-                  <span className="text-[10px] text-gray-400 font-medium">
-                    {new Date(item.requested_at).toLocaleTimeString()}
+                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                    roomId === item.room_id 
+                    ? "bg-green-100 text-green-700 animate-pulse" 
+                    : "bg-blue-100 text-blue-700"
+                  }`}>
+                    {roomId === item.room_id ? "Active" : "Waiting"}
                   </span>
                 </div>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Room ID: {item.room_id}
+                <p className="text-[10px] text-gray-500 mt-1 font-medium">
+                  Room: <span className="text-gray-900">{item.room_id}</span>
                 </p>
-                <p className="text-[11px] text-gray-500 mt-0.5">
-                  Service Type: {item.service_type}
-                </p>
+                
+                {/* Accept/Reject Buttons */}
+                <div className="flex gap-2 mt-3">
+                  <button
+                    onClick={async (e) => {
+                      e.stopPropagation();
+                      try {
+                        const agentToken = localStorage.getItem("access_token");
+                        const response = await fetch(
+                          `${import.meta.env.VITE_BACKEND_URL}/api/kyc/accept/${item.room_id}`,
+                          {
+                            method: "POST",
+                            headers: {
+                              "Content-Type": "application/json",
+                              "Authorization": `Bearer ${agentToken}`
+                            },
+                          },
+                        );
+
+                        if (!response.ok) {
+                          throw new Error(`Failed to accept: ${response.status}`);
+                        }
+
+                        setRoomId(item.room_id);
+                        setCallStarted(true);
+                        setCurrentCustomer({
+                          name: item.customer_id ? `Customer ${item.customer_id}` : "Guest Customer",
+                          id: item.room_id,
+                          dob: "N/A",
+                          address: "N/A",
+                          ...item,
+                        });
+                      } catch (error) {
+                        console.error("Error accepting KYC request:", error);
+                        alert("Failed to accept KYC request.");
+                      }
+                    }}
+                    className="flex-1 py-1.5 bg-green-600 hover:bg-green-700 text-white text-[10px] font-bold rounded-lg transition-all shadow-sm"
+                  >
+                    Accept
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      // Filter out locally for demo
+                      setPendingKycRequests(prev => prev.filter(req => req.room_id !== item.room_id));
+                    }}
+                    className="flex-1 py-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 text-[10px] font-bold rounded-lg transition-all"
+                  >
+                    Reject
+                  </button>
+                </div>
               </div>
             ))}
           </div>
@@ -421,12 +444,12 @@ function AgentVideokyc() {
         >
           <div className="flex-1 p-2 sm:p-4 lg:p-6 overflow-hidden flex flex-col">
             <div className="flex-1 bg-gray-900 rounded-2xl lg:rounded-[2.5rem] relative overflow-hidden shadow-2xl border-4 border-white">
-              <div className="absolute inset-0 ">
+              <div className="absolute inset-0 flex items-center justify-center">
                 {!callStarted ? (
-                  <div className="flex flex-col items-center justify-center gap-4 p-6">
-                    <p className="text-white font-bold text-lg">
-                      Select a customer from the Live Queue to start the call.
-                    </p>
+                  <div className="text-center">
+                    <div className="w-16 h-16 lg:w-24 lg:h-24 bg-gray-800/50 rounded-full flex items-center justify-center mx-auto mb-4 backdrop-blur-md">
+                      <Video className="text-gray-600/30" size={32} />
+                    </div>
                   </div>
                 ) : (
                   <video
