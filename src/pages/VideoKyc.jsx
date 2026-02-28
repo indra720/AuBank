@@ -435,8 +435,7 @@ function VideoKyc() {
 
               {/* Action Controls */}
               <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/5 backdrop-blur-2xl p-3 lg:p-4 rounded-[2.5rem] border border-white/10 shadow-2xl">
-                <ControlButton icon={<Camera size={20} />} label="Capture" />
-                <ControlButton icon={<FileCheck size={20} />} label="PAN" />
+                {/* Capture and PAN hidden for Customer view */}
                 <ControlButton
                   icon={<Mic size={20} />}
                   label={isMuted ? "Unmute" : "Mute"}
@@ -448,7 +447,7 @@ function VideoKyc() {
                   onClick={endCall}
                   className="w-12 h-12 lg:w-16 lg:h-16 bg-red-500 hover:bg-red-600 text-white rounded-full flex items-center justify-center shadow-xl shadow-red-900/20 transition-all hover:rotate-90"
                 >
-                  <PhoneOff size={24} />
+                  <PhoneOff size={20} />
                 </button>
               </div>
             </div>
