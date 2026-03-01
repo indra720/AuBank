@@ -29,12 +29,34 @@ import {
   LogIn,
   UserPlus
 } from "lucide-react";
-import { Link, useLocation } from "react-router-dom";
+import { Link, useLocation, useNavigate } from "react-router-dom";
 import { useState } from "react";
 
 const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
   const location = useLocation();
+  const navigate = useNavigate();
   const [hoveredItem, setHoveredItem] = useState(null);
+
+  const handleLogout = async () => {
+    const token = localStorage.getItem("access_token");
+    try {
+      // Optional: Call logout API to invalidate session on backend
+      await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/auth/logout`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
+    } catch (error) {
+      console.error("Logout API error:", error);
+    } finally {
+      // Clear token and redirect regardless of API success
+      localStorage.removeItem("access_token");
+      localStorage.removeItem("user_role");
+      navigate("/login");
+      setIsOpen(false);
+    }
+  };
 
   const menuItems = [
     { icon: <LayoutDashboard size={22} />, label: "Video Kyc", path: "/videokyc" },
@@ -164,7 +186,10 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
           </div>
 
           <div className="relative flex items-center" onMouseEnter={() => setHoveredItem('Logout')} onMouseLeave={() => setHoveredItem(null)}>
-            <button className="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-red-900/20 text-red-400 hover:text-red-300 transition-all text-left">
+            <button 
+              onClick={handleLogout}
+              className="w-full flex items-center gap-4 px-4 py-3 rounded-xl hover:bg-red-900/20 text-red-400 hover:text-red-300 transition-all text-left"
+            >
               <LogOut size={22} className="shrink-0" />
               <span className={`font-medium transition-all duration-300 ${isCollapsed ? "lg:opacity-0 lg:hidden" : "opacity-100"}`}>
                 Logout

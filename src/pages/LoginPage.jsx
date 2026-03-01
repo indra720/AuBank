@@ -69,13 +69,13 @@ function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-orange-50 via-white to-orange-100 font-sans antialiased flex justify-center items-center p-4">
-      <div className="flex w-full max-w-5xl bg-white rounded-[2rem] overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 transition-all duration-500">
+    <div className="min-h-screen bg-linear-to-br from-orange-50 via-white to-orange-100 font-sans antialiased flex justify-center items-center p-4">
+      <div className="flex w-full max-w-5xl bg-white rounded-md overflow-hidden shadow-[0_20px_50px_rgba(0,0,0,0.1)] border border-gray-100 transition-all duration-500">
         
         {/* Left Section - Aesthetic Image */}
         <div className="hidden lg:block w-1/2 relative group">
           <img src={loginimg} alt="Login Visual" className="h-full w-full object-cover transition-transform duration-700 group-hover:scale-105"/>
-          <div className="absolute inset-0 bg-gradient-to-t from-orange-600/40 to-transparent"></div>
+          <div className="absolute inset-0 bg-linear-to-t from-orange-600/40 to-transparent"></div>
           <div className="absolute bottom-12 left-12 text-white">
             <h2 className="text-4xl font-bold mb-2">Secure Banking</h2>
             <p className="text-orange-50 font-medium">Experience the next generation of Video KYC.</p>

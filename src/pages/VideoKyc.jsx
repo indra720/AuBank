@@ -232,10 +232,14 @@ function VideoKyc() {
           return;
         }
 
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
+       const stream = await navigator.mediaDevices.getUserMedia({
+  video: {
+    width: { ideal: 1280 },
+    height: { ideal: 720 },
+    backgroundBlur: false,
+  },
+  audio: true,
+});
         localStreamRef.current = stream;
         customerVideoRef.current.srcObject = stream;
         await startWebRTC(stream, data.room_id);

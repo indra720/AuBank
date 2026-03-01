@@ -1,5 +1,5 @@
-// App.jsx
-import { useState } from 'react'
+// src/pages/ServiceReuestTracking.jsx
+import { useState, useEffect } from 'react'
 import {
   MdDashboard,
   MdTrackChanges,
@@ -22,52 +22,45 @@ import {
 
 function ServiceRequestTracking() {
   const [activeTab, setActiveTab] = useState('Active Requests')
+  const [tickets, setTickets] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState(null)
+  const [selectedTicket, setSelectedTicket] = useState(null)
 
-  const requests = [
-    {
-      id: "SR10294",
-      title: "Cheque Book Request",
-      date: "12 Oct 2023",
-      status: "Under Processing",
-      statusColor: "orange",
-      timeline: [
-        { label: "Submitted", date: "12 Oct 2023, 10:30 AM", done: true },
-        { label: "Under Processing", date: "13 Oct 2023, 02:15 PM", done: true },
-      ]
-    },
-    {
-      id: "SR10185",
-      title: "Address Update",
-      date: "08 Oct 2023",
-      status: "Submitted",
-      statusColor: "blue",
-      timeline: [
-        { label: "Submitted", date: "08 Oct 2023", done: true },
-      ]
-    },
-    {
-      id: "SR09921",
-      title: "Debit Card Reissue",
-      date: "01 Oct 2023",
-      status: "Dispatched",
-      statusColor: "purple",
-      timeline: [
-        { label: "Submitted", date: "01 Oct 2023", done: true },
-        { label: "Dispatched", date: "Expected: 15 Oct 2023", done: false },
-      ]
-    },
-    {
-      id: "SR09812",
-      title: "KYC Renewal",
-      date: "28 Sep 2023",
-      status: "Completed",
-      statusColor: "green",
-      timeline: [
-        { label: "Submitted", date: "28 Sep 2023", done: true },
-        { label: "Completed", date: "17 Oct 2023", done: true },
-      ]
-    },
-  ]
+  useEffect(() => {
+    const fetchTickets = async () => {
+      const token = localStorage.getItem("access_token")
+      try {
+        const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/customer/my-tickets`, {
+          headers: {
+            Authorization: `Bearer ${token}`,
+          },
+        })
+        if (response.ok) {
+          const data = await response.json()
+          setTickets(data)
+          if (data.length > 0) {
+            setSelectedTicket(data[0]) // Default selection
+          }
+        } else {
+          setError("Failed to load tickets.")
+        }
+      } catch (err) {
+        console.error("Error fetching tickets:", err)
+        setError("Something went wrong.")
+      } finally {
+        setLoading(false)
+      }
+    }
+
+    fetchTickets()
+  }, [])
+
+  // Helper to format date
+  const formatDate = (dateString) => {
+    const options = { day: '2-digit', month: 'short', year: 'numeric' };
+    return new Date(dateString).toLocaleDateString('en-GB', options);
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 font-sans">
@@ -198,72 +191,112 @@ function ServiceRequestTracking() {
                   <table className="min-w-full">
                     <thead className="bg-gray-50/50">
                       <tr>
-                        <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">DETAILS</th>
+                        <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">ID / SUBJECT</th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">DATE</th>
                         <th className="px-6 py-4 text-left text-[10px] font-bold text-gray-400 uppercase tracking-widest">STATUS</th>
                         <th className="px-6 py-4 text-right text-[10px] font-bold text-gray-400 uppercase tracking-widest">ACTION</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-gray-100">
-                      {requests.map((req, i) => (
-                        <tr key={i} className="hover:bg-gray-50/50 transition-colors">
-                          <td className="px-6 py-5">
-                            <div className="font-bold text-gray-900 text-sm">{req.id}</div>
-                            <div className="text-xs text-gray-500 font-medium">{req.title}</div>
-                          </td>
-                          <td className="px-6 py-5 text-xs text-gray-600 font-semibold">{req.date}</td>
-                          <td className="px-6 py-5">
-                            <span className={`inline-flex px-3 py-1 text-[10px] font-bold rounded-full ${
-                              req.statusColor === 'orange' ? 'bg-orange-50 text-orange-600 border border-orange-100' :
-                              req.statusColor === 'blue'   ? 'bg-blue-50 text-blue-600 border border-blue-100' :
-                              req.statusColor === 'purple' ? 'bg-purple-50 text-purple-600 border border-purple-100' :
-                              'bg-green-50 text-green-600 border border-green-100'
-                            }`}>
-                              {req.status.toUpperCase()}
-                            </span>
-                          </td>
-                          <td className="px-6 py-5 text-right">
-                            <button className="p-2 hover:bg-orange-50 rounded-lg text-orange-600 transition-colors">
-                              <MdChevronRight size={22} />
-                            </button>
-                          </td>
-                        </tr>
-                      ))}
+                      {loading ? (
+                        <tr><td colSpan="4" className="px-6 py-10 text-center text-sm text-gray-500">Loading your requests...</td></tr>
+                      ) : error ? (
+                        <tr><td colSpan="4" className="px-6 py-10 text-center text-sm text-red-500">{error}</td></tr>
+                      ) : (activeTab === 'Active Requests' ? tickets.filter(t => t.status !== 'resolved') : tickets.filter(t => t.status === 'resolved')).length === 0 ? (
+                        <tr><td colSpan="4" className="px-6 py-10 text-center text-sm text-gray-500">No requests found in this category.</td></tr>
+                      ) : (
+                        (activeTab === 'Active Requests' ? tickets.filter(t => t.status !== 'resolved') : tickets.filter(t => t.status === 'resolved')).map((req, i) => (
+                          <tr 
+                            key={i} 
+                            onClick={() => setSelectedTicket(req)}
+                            className={`hover:bg-gray-50/50 transition-colors cursor-pointer ${selectedTicket?.id === req.id ? 'bg-orange-50/30' : ''}`}
+                          >
+                            <td className="px-6 py-5">
+                              <div className="font-bold text-gray-900 text-sm">#SR{req.id}</div>
+                              <div className="text-xs text-gray-500 font-medium truncate max-w-[200px]">{req.subject}</div>
+                            </td>
+                            <td className="px-6 py-5 text-xs text-gray-600 font-semibold">{formatDate(req.created_at)}</td>
+                            <td className="px-6 py-5">
+                              <span className={`inline-flex px-3 py-1 text-[10px] font-bold rounded-full border ${
+                                req.status === 'open' ? 'bg-orange-50 text-orange-600 border-orange-100' :
+                                req.status === 'resolved'   ? 'bg-green-50 text-green-600 border-green-100' :
+                                'bg-blue-50 text-blue-600 border-blue-100'
+                              }`}>
+                                {req.status.toUpperCase()}
+                              </span>
+                            </td>
+                            <td className="px-6 py-5 text-right">
+                              <button className="p-2 hover:bg-orange-50 rounded-lg text-orange-600 transition-colors">
+                                <MdChevronRight size={22} />
+                              </button>
+                            </td>
+                          </tr>
+                        ))
+                      )}
                     </tbody>
                   </table>
                 </div>
               </div>
 
-              {/* Timeline Card */}
+              {/* Detail View Card */}
               <div className="space-y-6">
                 <div className="bg-white rounded-2xl border border-gray-200 shadow-sm overflow-hidden">
                   <div className="p-5 border-b border-gray-200 bg-gray-50/30">
                     <div className="text-[10px] font-bold text-orange-600 tracking-widest uppercase mb-1">LIVE TRACKING</div>
-                    <h2 className="font-bold text-gray-900">Request Timeline</h2>
-                    <div className="text-xs text-gray-500 mt-1 font-medium">SR ID: <span className="text-gray-900">SR10294</span></div>
+                    <h2 className="font-bold text-gray-900">Request Details</h2>
+                    {selectedTicket && (
+                      <div className="text-xs text-gray-500 mt-1 font-medium">SR ID: <span className="text-gray-900">SR{selectedTicket.id}</span></div>
+                    )}
                   </div>
 
                   <div className="p-6">
-                    <div className="relative space-y-8 before:absolute before:left-2.75 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100">
-                      {requests[0].timeline.map((step, i) => (
-                        <div key={i} className="relative flex gap-4">
-                          <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-sm ${
-                            step.done ? 'bg-orange-600' : 'bg-gray-200'
-                          }`}>
-                            {step.done && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                    {selectedTicket ? (
+                      <div className="space-y-6">
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Subject</p>
+                          <p className="text-sm font-bold text-gray-900">{selectedTicket.subject}</p>
+                        </div>
+                        <div>
+                          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-widest mb-1">Description</p>
+                          <div className="text-xs text-gray-600 bg-gray-50 p-4 rounded-xl border border-gray-100 leading-relaxed">
+                            {selectedTicket.description}
                           </div>
+                        </div>
+                        {selectedTicket.agent_feedback && (
                           <div>
-                            <div className={`text-sm font-bold ${step.done ? 'text-gray-900' : 'text-gray-400'}`}>
-                              {step.label}
+                            <p className="text-[10px] font-bold text-green-600 uppercase tracking-widest mb-1">Agent Feedback</p>
+                            <div className="text-xs text-green-700 bg-green-50 p-4 rounded-xl border border-green-100 leading-relaxed">
+                              {selectedTicket.agent_feedback}
                             </div>
-                            <div className="text-[11px] text-gray-500 font-medium mt-0.5">
-                              {step.date}
+                          </div>
+                        )}
+                        
+                        <div className="relative space-y-8 before:absolute before:left-2.75 before:top-2 before:bottom-2 before:w-0.5 before:bg-gray-100 pt-4">
+                          <div className="relative flex gap-4">
+                            <div className="relative z-10 w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-sm bg-orange-600">
+                              <div className="w-1.5 h-1.5 bg-white rounded-full"></div>
+                            </div>
+                            <div>
+                              <div className="text-sm font-bold text-gray-900">Ticket Raised</div>
+                              <div className="text-[11px] text-gray-500 font-medium mt-0.5">{formatDate(selectedTicket.created_at)}</div>
+                            </div>
+                          </div>
+                          <div className="relative flex gap-4">
+                            <div className={`relative z-10 w-6 h-6 rounded-full flex items-center justify-center border-4 border-white shadow-sm ${selectedTicket.status !== 'open' ? 'bg-orange-600' : 'bg-gray-200'}`}>
+                              {selectedTicket.status !== 'open' && <div className="w-1.5 h-1.5 bg-white rounded-full"></div>}
+                            </div>
+                            <div>
+                              <div className={`text-sm font-bold ${selectedTicket.status !== 'open' ? 'text-gray-900' : 'text-gray-400'}`}>
+                                {selectedTicket.status === 'resolved' ? 'Resolved' : 'In Processing'}
+                              </div>
                             </div>
                           </div>
                         </div>
-                      ))}
-                    </div>
-
+                      </div>
+                    ) : (
+                      <p className="text-xs text-gray-500 italic">Select a request to view details.</p>
+                    )}
+                    
                     <div className="mt-10 grid grid-cols-2 gap-3">
                       <button className="flex items-center justify-center gap-2 bg-gray-50 hover:bg-gray-100 text-gray-700 py-3 rounded-xl text-xs font-bold border border-gray-100 transition-all">
                         <MdReceipt size={16} />
@@ -280,14 +313,14 @@ function ServiceRequestTracking() {
                 {/* Stats Summary Cards */}
                 <div className="grid grid-cols-2 gap-4">
                   {[
-                    { label: "TOTAL REQUESTS", value: "24", icon: MdReceipt, color: "gray" },
-                    { label: "ACTIVE", value: "03", icon: MdTrackChanges, color: "orange" },
-                    { label: "COMPLETED", value: "19", icon: MdCheckCircle, color: "green" },
-                    { label: "AVG. TIME", value: "2.4d", icon: MdSchedule, color: "blue" },
+                    { label: "TOTAL REQUESTS", value: tickets.length, icon: MdReceipt, color: "gray" },
+                    { label: "OPEN", value: tickets.filter(t => t.status === 'open').length, icon: MdTrackChanges, color: "orange" },
+                    { label: "RESOLVED", value: tickets.filter(t => t.status === 'resolved').length, icon: MdCheckCircle, color: "green" },
+                    { label: "AVG. TIME", value: "1.2d", icon: MdSchedule, color: "blue" },
                   ].map((stat, i) => (
                     <div key={i} className="bg-white rounded-2xl p-5 border border-gray-200 shadow-sm transition-all hover:shadow-md">
                       <div className="flex items-center justify-between mb-3">
-                        <div className={`p-2 rounded-lg bg-${stat.color}-50 text-${stat.color}-600`}>
+                        <div className={`p-2 rounded-lg bg-gray-50 text-orange-600`}>
                           <stat.icon size={18} />
                         </div>
                       </div>

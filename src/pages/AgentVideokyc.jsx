@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef } from "react";
+import { SelfieSegmentation } from "@mediapipe/selfie_segmentation";
+import auLogo from "../assets/AU-Logo_H30px-1.svg";
 import {
   Video,
-  Camera,
+  Camera as CameraIcon,
   FileCheck,
   PhoneOff,
   CheckCircle2,
@@ -25,6 +27,15 @@ function AgentVideokyc() {
   const agentVideoRef = useRef(null);
   const peerRef = useRef(null);
   const customerVideoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const processingVideoRef = useRef(null);
+  const logoRef = useRef(null);
+
+  useEffect(() => {
+    const img = new Image();
+    img.src = auLogo;
+    logoRef.current = img;
+  }, []);
 
   const [isMuted, setIsMuted] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -41,18 +52,18 @@ function AgentVideokyc() {
     }
 
     setIsCapturing(true);
-    
+
     // Instruction sequence for Face capture
     if (label === "Customer Face") {
       setInstruction("Please look LEFT...");
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
       setInstruction("Please look RIGHT...");
-      await new Promise(r => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 1000));
       setInstruction("Look STRAIGHT and SMILE!");
-      await new Promise(r => setTimeout(r, 800));
+      await new Promise((r) => setTimeout(r, 800));
     } else {
       setInstruction("Capturing PAN Card...");
-      await new Promise(r => setTimeout(r, 500));
+      await new Promise((r) => setTimeout(r, 500));
     }
 
     try {
@@ -66,13 +77,13 @@ function AgentVideokyc() {
       // Set canvas size to match the actual video stream dimensions
       canvas.width = video.videoWidth || 1280;
       canvas.height = video.videoHeight || 720;
-      
+
       const ctx = canvas.getContext("2d");
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
-      
+
       const imageData = canvas.toDataURL("image/jpeg", 0.9);
       console.log("Capture successful, data length:", imageData.length);
-      
+
       if (imageData.length < 100) {
         throw new Error("Captured image is empty or invalid.");
       }
@@ -80,19 +91,19 @@ function AgentVideokyc() {
       setCapturedImage(imageData);
       setCaptureLabel(label);
       setShowPopup(true);
-      
+
       const agentToken = localStorage.getItem("access_token");
       await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/session/capture`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "Authorization": `Bearer ${agentToken}`
+          Authorization: `Bearer ${agentToken}`,
         },
         body: JSON.stringify({
           room_id: roomId,
           label: label,
-          image_data: imageData
-        })
+          image_data: imageData,
+        }),
       });
     } catch (error) {
       console.error("Error capturing image:", error);
@@ -146,10 +157,11 @@ function AgentVideokyc() {
 
     const agentToken = localStorage.getItem("access_token");
     // WebSocket connect karo
-    const wsBaseUrl = import.meta.env.VITE_BACKEND_URL.replace(/^http/, "ws").replace(/\/$/, "");
-    const ws = new WebSocket(
-      `${wsBaseUrl}/ws/${roomId}/1?token=${agentToken}`,
-    );
+    const wsBaseUrl = import.meta.env.VITE_BACKEND_URL.replace(
+      /^http/,
+      "ws",
+    ).replace(/\/$/, "");
+    const ws = new WebSocket(`${wsBaseUrl}/ws/${roomId}/1?token=${agentToken}`);
     wsRef.current = ws;
 
     // RTCPeerConnection banao
@@ -273,17 +285,82 @@ function AgentVideokyc() {
     const joinAsAgent = async () => {
       try {
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-          alert("Camera access is only allowed on HTTPS or localhost. Please check your browser settings.");
+          alert(
+            "Camera access is only allowed on HTTPS or localhost. Please check your browser settings.",
+          );
           return;
         }
         const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            backgroundBlur: false,
+          },
           audio: true,
         });
-        agentVideoRef.current.srcObject = stream;
+
+        // --- BACKGROUND REPLACEMENT LOGIC ---
+        const videoElement = processingVideoRef.current;
+        videoElement.srcObject = stream;
+        await videoElement.play();
+
+        const canvasElement = canvasRef.current;
+        const canvasCtx = canvasElement.getContext("2d");
+
+        const selfieSegmentation = new SelfieSegmentation({
+          locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/selfie_segmentation/${file}`,
+        });
+
+        selfieSegmentation.setOptions({
+          modelSelection: 1,
+        });
+
+        selfieSegmentation.onResults((results) => {
+          canvasCtx.save();
+          canvasCtx.clearRect(0, 0, canvasElement.width, canvasElement.height);
+          canvasCtx.drawImage(results.segmentationMask, 0, 0, canvasElement.width, canvasElement.height);
+          canvasCtx.globalCompositeOperation = "source-in";
+          canvasCtx.drawImage(results.image, 0, 0, canvasElement.width, canvasElement.height);
+          canvasCtx.globalCompositeOperation = "destination-over";
+          
+          if (logoRef.current) {
+            const logo = logoRef.current;
+            const canvasW = canvasElement.width;
+            const canvasH = canvasElement.height;
+            const imgW = logo.width || 200;
+            const imgH = logo.height || 30;
+
+            // Object-cover logic for Canvas
+            const ratio = Math.max(canvasW / imgW, canvasH / imgH);
+            const newWidth = imgW * ratio;
+            const newHeight = imgH * ratio;
+            const x = (canvasW - newWidth) / 2;
+            const y = (canvasH - newHeight) / 2;
+
+            canvasCtx.drawImage(logo, x, y, newWidth, newHeight);
+          } else {
+            // Fallback to theme color
+            canvasCtx.fillStyle = "#FB923C"; 
+            canvasCtx.fillRect(0, 0, canvasElement.width, canvasElement.height);
+          }
+          
+          canvasCtx.restore();
+        });
+
+        const processFrame = async () => {
+          if (videoElement.paused || videoElement.ended) return;
+          await selfieSegmentation.send({ image: videoElement });
+          requestAnimationFrame(processFrame);
+        };
+        processFrame();
+
+        const processedStream = canvasElement.captureStream(30);
+        stream.getAudioTracks().forEach((track) => processedStream.addTrack(track));
+
+        agentVideoRef.current.srcObject = processedStream;
         agentVideoRef.current.muted = true;
-        localStreamRef.current = stream;
-        await startWebRTC(stream, roomId);
+        localStreamRef.current = processedStream;
+        await startWebRTC(processedStream, roomId);
         setIsCallActive(true);
       } catch (error) {
         console.error("Error:", error);
@@ -296,11 +373,14 @@ function AgentVideokyc() {
   const fetchPendingKycRequests = async () => {
     const agentToken = localStorage.getItem("access_token");
     try {
-      const response = await fetch(`${import.meta.env.VITE_BACKEND_URL}/api/kyc/pending`, {
-        headers: {
-          "Authorization": `Bearer ${agentToken}`
-        }
-      });
+      const response = await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/kyc/pending`,
+        {
+          headers: {
+            Authorization: `Bearer ${agentToken}`,
+          },
+        },
+      );
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
@@ -313,7 +393,7 @@ function AgentVideokyc() {
 
   useEffect(() => {
     fetchPendingKycRequests();
-    
+
     // Smart Polling: Only poll if NOT in a call and window is active
     const interval = setInterval(() => {
       if (!callStarted) {
@@ -326,6 +406,10 @@ function AgentVideokyc() {
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
+      {/* Hidden elements for Background Replacement */}
+      <video ref={processingVideoRef} className="hidden" playsInline muted />
+      <canvas ref={canvasRef} className="hidden" width="1280" height="720" />
+
       {/* --- DASHBOARD SPECIFIC HEADER (Only for this page) --- */}
       <div className="bg-white border-b border-gray-200 px-4 lg:px-6 py-3 flex flex-col md:flex-row md:items-center justify-between gap-4">
         {/* Search */}
@@ -408,9 +492,11 @@ function AgentVideokyc() {
               <h2 className="font-bold text-gray-800 text-sm tracking-wider uppercase">
                 Live Queue
               </h2>
-              <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest bg-green-50 px-1 rounded ml-1">Live</span>
+              <span className="text-[8px] text-green-500 font-bold uppercase tracking-widest bg-green-50 px-1 rounded ml-1">
+                Live
+              </span>
             </div>
-            <button 
+            <button
               onClick={fetchPendingKycRequests}
               className="p-1.5 hover:bg-gray-100 rounded-lg text-gray-400 hover:text-orange-600 transition-all active:rotate-180"
               title="Refresh Queue"
@@ -450,25 +536,31 @@ function AgentVideokyc() {
               <div
                 key={item.room_id}
                 className={`p-3 rounded-xl border transition-all group ${
-                  roomId === item.room_id ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200" : "border-gray-100 bg-white hover:border-orange-100"
+                  roomId === item.room_id
+                    ? "bg-orange-50 border-orange-200 ring-1 ring-orange-200"
+                    : "border-gray-100 bg-white hover:border-orange-100"
                 }`}
               >
                 <div className="flex justify-between items-start">
                   <h4 className="font-semibold text-gray-800 text-sm">
-                    {item.customer_id ? `Customer ${item.customer_id}` : "KYC Request"}
+                    {item.customer_id
+                      ? `Customer ${item.customer_id}`
+                      : "KYC Request"}
                   </h4>
-                  <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
-                    roomId === item.room_id 
-                    ? "bg-green-100 text-green-700 animate-pulse" 
-                    : "bg-blue-100 text-blue-700"
-                  }`}>
+                  <span
+                    className={`text-[9px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wider ${
+                      roomId === item.room_id
+                        ? "bg-green-100 text-green-700 animate-pulse"
+                        : "bg-blue-100 text-blue-700"
+                    }`}
+                  >
                     {roomId === item.room_id ? "Active" : "Waiting"}
                   </span>
                 </div>
                 <p className="text-[10px] text-gray-500 mt-1 font-medium">
                   Room: <span className="text-gray-900">{item.room_id}</span>
                 </p>
-                
+
                 {/* Accept/Reject Buttons */}
                 <div className="flex gap-2 mt-3">
                   <button
@@ -482,19 +574,23 @@ function AgentVideokyc() {
                             method: "POST",
                             headers: {
                               "Content-Type": "application/json",
-                              "Authorization": `Bearer ${agentToken}`
+                              Authorization: `Bearer ${agentToken}`,
                             },
                           },
                         );
 
                         if (!response.ok) {
-                          throw new Error(`Failed to accept: ${response.status}`);
+                          throw new Error(
+                            `Failed to accept: ${response.status}`,
+                          );
                         }
 
                         setRoomId(item.room_id);
                         setCallStarted(true);
                         setCurrentCustomer({
-                          name: item.customer_id ? `Customer ${item.customer_id}` : "Guest Customer",
+                          name: item.customer_id
+                            ? `Customer ${item.customer_id}`
+                            : "Guest Customer",
                           id: item.room_id,
                           dob: "N/A",
                           address: "N/A",
@@ -513,7 +609,9 @@ function AgentVideokyc() {
                     onClick={(e) => {
                       e.stopPropagation();
                       // Filter out locally for demo
-                      setPendingKycRequests(prev => prev.filter(req => req.room_id !== item.room_id));
+                      setPendingKycRequests((prev) =>
+                        prev.filter((req) => req.room_id !== item.room_id),
+                      );
                     }}
                     className="flex-1 py-1.5 bg-gray-100 hover:bg-red-50 hover:text-red-600 text-gray-500 text-[10px] font-bold rounded-lg transition-all"
                   >
@@ -557,7 +655,7 @@ function AgentVideokyc() {
                     className="w-full h-full object-cover"
                   />
                 )}
-                
+
                 {/* Instruction Overlay */}
                 {instruction && (
                   <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 z-50">
@@ -581,14 +679,14 @@ function AgentVideokyc() {
 
               {/* Action Controls */}
               <div className="absolute bottom-6 lg:bottom-10 left-1/2 -translate-x-1/2 flex items-center gap-3 bg-white/5 backdrop-blur-2xl p-3 lg:p-4 rounded-[2.5rem] border border-white/10 shadow-2xl z-30">
-                <ControlButton 
-                  icon={<Camera size={20} />} 
-                  label={isCapturing ? "..." : "Capture"} 
+                <ControlButton
+                  icon={<CameraIcon size={20} />}
+                  label={isCapturing ? "..." : "Capture"}
                   onClick={() => handleCapture("Customer Face")}
                 />
-                <ControlButton 
-                  icon={<FileCheck size={20} />} 
-                  label={isCapturing ? "..." : "PAN"} 
+                <ControlButton
+                  icon={<FileCheck size={20} />}
+                  label={isCapturing ? "..." : "PAN"}
                   onClick={() => handleCapture("PAN Card")}
                 />
                 <ControlButton
@@ -684,44 +782,50 @@ function AgentVideokyc() {
 
       {/* --- CAPTURE PREVIEW MODAL --- */}
       {showPopup && (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
+        <div className="fixed inset-0 z-100 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-in fade-in duration-300">
           <div className="bg-white rounded-[2.5rem] w-full max-w-lg overflow-hidden shadow-2xl border border-white/20 scale-in-center transition-all">
             <div className="p-6 border-b border-gray-100 flex items-center justify-between bg-gray-50/50">
               <div>
-                <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">Capture Successful</p>
-                <h3 className="text-xl font-bold text-gray-900">{captureLabel}</h3>
+                <p className="text-[10px] font-bold text-orange-600 uppercase tracking-widest">
+                  Capture Successful
+                </p>
+                <h3 className="text-xl font-bold text-gray-900">
+                  {captureLabel}
+                </h3>
               </div>
-              <button 
+              <button
                 onClick={() => setShowPopup(false)}
                 className="p-2 hover:bg-gray-200 rounded-full text-gray-400 transition-colors"
               >
                 <X size={24} />
               </button>
             </div>
-            
+
             <div className="p-8 bg-gray-100">
               <div className="aspect-video bg-gray-200 rounded-3xl overflow-hidden border-4 border-white shadow-inner relative group">
-                <img 
-                  src={capturedImage} 
-                  alt="Captured" 
+                <img
+                  src={capturedImage}
+                  alt="Captured"
                   className="w-full h-full object-cover"
                 />
-                <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                  <span className="text-white text-[10px] font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-3 py-1 rounded-full">Preview</span>
+                <div className="absolute inset-0 bg-linear-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
+                  <span className="text-white text-[10px] font-bold uppercase tracking-widest bg-black/20 backdrop-blur-md px-3 py-1 rounded-full">
+                    Preview
+                  </span>
                 </div>
               </div>
             </div>
 
             <div className="p-6 bg-white flex gap-3">
-              <button 
+              <button
                 onClick={() => setShowPopup(false)}
                 className="flex-1 py-4 text-gray-500 font-bold text-sm hover:bg-gray-50 rounded-2xl transition-all"
               >
                 Discard
               </button>
-              <button 
+              <button
                 onClick={() => setShowPopup(false)}
-                className="flex-[2] py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-600/20 transition-all active:scale-95"
+                className="flex-0.5 py-4 bg-orange-600 hover:bg-orange-700 text-white font-bold text-sm rounded-2xl shadow-lg shadow-orange-600/20 transition-all active:scale-95"
               >
                 Save & Continue
               </button>
