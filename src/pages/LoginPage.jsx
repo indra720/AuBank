@@ -51,7 +51,7 @@ function LoginPage() {
           
           // Role-based redirection
           if (role === "agent") {
-            navigate("/agentvideokyc");
+            navigate("/agent-videokyc");
           } else {
             navigate("/videokyc");
           }
