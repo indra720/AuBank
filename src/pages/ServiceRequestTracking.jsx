@@ -213,7 +213,7 @@ function ServiceRequestTracking() {
                           >
                             <td className="px-6 py-5">
                               <div className="font-bold text-gray-900 text-sm">#SR{req.id}</div>
-                              <div className="text-xs text-gray-500 font-medium truncate max-w-[200px]">{req.subject}</div>
+                              <div className="text-xs text-gray-500 font-medium truncate max-w-50">{req.subject}</div>
                             </td>
                             <td className="px-6 py-5 text-xs text-gray-600 font-semibold">{formatDate(req.created_at)}</td>
                             <td className="px-6 py-5">

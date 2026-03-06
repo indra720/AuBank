@@ -60,26 +60,23 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
 
   const menuItems = [
     { icon: <LayoutDashboard size={22} />, label: "Video Kyc", path: "/videokyc" },
-    { icon: <LayoutDashboard size={22} />, label: "Agent video kyc", path: "/agentvideokyc" },
+    { icon: <LayoutDashboard size={22} />, label: "Agent Video Kyc", path: "/agent-videokyc" },
     { icon: <Cog size={22} />, label: "Operation", path: "/operation" },
     { icon: <Globe size={22} />, label: "Global", path: "/global" },
     { icon: <User size={22} />, label: "Customer", path: "/customer" },
     { icon: <ShieldCheck size={22} />, label: "Internal", path: "/internal" },
     { icon: <BarChart3 size={22} />, label: "Performance", path: "/performance" },
-    { icon: <UsersRound size={22} />, label: "U.Management", path: "/usermanagement" },
-    { icon: <ShieldAlert size={22} />, label: "SystemHealth & Security", path: "/systemhealth" },
-    { icon: <GraduationCap size={22} />, label: "Training Portal", path: "/generatedpage" },
-    { icon: <Building2 size={22} />, label: "Branch Management", path: "/branchmanagement" },
-    { icon: <UserCheck size={22} />, label: "Agent Performance", path: "/AgentPerformance" },
-    { icon: <ShieldEllipsis size={22} />, label: "Compliance & Risk", path: "/compliancerisk" },
-    { icon: <Wrench size={22} />, label: "Service Request", path: "/servicerequest" },
-    { icon: <Activity size={22} />, label: "Service Tracking", path: "/servicetracking" },
-    { icon: <ClipboardEdit size={22} />, label: "Service Form", path: "/serviceform" },
-    { icon: <Wallet size={22} />, label: "Wealth Portal", path: "/wealthportal" },
-    { icon: <FileSearch size={22} />, label: "Internal Audit", path: "/internalaudit" },
-    { icon: <LogIn size={22} />, label: "Login", path: "/login" },
-    { icon: <UserPlus size={22} />, label: "Register", path: "/register" },
-    { icon: <Settings size={22} />, label: "Settings", path: "/settings" },
+    { icon: <UsersRound size={22} />, label: "User Management", path: "/user-management" },
+    { icon: <ShieldAlert size={22} />, label: "System Health", path: "/system-health" },
+    { icon: <GraduationCap size={22} />, label: "Training Portal", path: "/training-portal" },
+    { icon: <Building2 size={22} />, label: "Branch Management", path: "/branch-management" },
+    { icon: <UserCheck size={22} />, label: "Agent Performance", path: "/agent-performance" },
+    { icon: <ShieldEllipsis size={22} />, label: "Compliance & Risk", path: "/compliance-risk" },
+    { icon: <Wrench size={22} />, label: "Service Request", path: "/service-request" },
+    { icon: <Activity size={22} />, label: "Service Tracking", path: "/service-tracking" },
+    { icon: <ClipboardEdit size={22} />, label: "Service Form", path: "/service-form" },
+    { icon: <Wallet size={22} />, label: "Wealth Portal", path: "/wealth-portal" },
+    { icon: <FileSearch size={22} />, label: "Internal Audit", path: "/internal-audit" },
   ];
 
   return (
@@ -133,7 +130,7 @@ const Sidebar = ({ isOpen, setIsOpen, isCollapsed, setIsCollapsed }) => {
         {/* Navigation */}
         <nav className="flex-1 mt-4 px-3 space-y-2 pb-8">
           {menuItems.map((item) => {
-            const isActive = location.pathname === item.path || (item.path === '/dashboard' && location.pathname === '/');
+            const isActive = location.pathname === item.path || (item.path === '/videokyc' && location.pathname === '/');
             return (
               <div 
                 key={item.label} 
