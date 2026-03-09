@@ -26,6 +26,7 @@ function AgentVideokyc() {
   const [isCallActive, setIsCallActive] = useState(false);
   const [roomId, setRoomId] = useState("");
   const [callStarted, setCallStarted] = useState(false);
+  const callStartedRef = useRef(false);
   const agentVideoRef = useRef(null);
   const peerRef = useRef(null);
   const customerVideoRef = useRef(null);
@@ -33,12 +34,17 @@ function AgentVideokyc() {
   const processingVideoRef = useRef(null);
   const logoRef = useRef(null);
   const [data, setdata] = useState(null);
+  const [showToast, setShowToast] = useState(false);
+  const [toastMessage, setToastMessage] = useState("");
 
   useEffect(() => {
     const img = new Image();
     img.src = auLogo;
     logoRef.current = img;
   }, []);
+
+
+ 
 
   const [isMuted, setIsMuted] = useState(false);
   const [isCapturing, setIsCapturing] = useState(false);
@@ -47,6 +53,8 @@ function AgentVideokyc() {
   const [captureLabel, setCaptureLabel] = useState("");
   const [instruction, setInstruction] = useState("");
   const localStreamRef = useRef(null);
+  const [showRejectDialog, setShowRejectDialog] = useState(false);
+  const [rejectionNotes, setRejectionNotes] = useState("");
 
   const handleCapture = async (label) => {
     if (!customerVideoRef.current || !roomId) {
@@ -132,6 +140,7 @@ function AgentVideokyc() {
         setIsCallActive(false);
         setCurrentCustomer(null);
         setRoomId("");
+        setdata(null); // Clear customer data on call end
       }, 200);
     } else {
       setCallStarted(false);
@@ -347,7 +356,7 @@ function AgentVideokyc() {
     joinAsAgent();
   }, [callStarted, roomId]);
 
-  const fetchPendingKycRequests = async () => {
+const fetchPendingKycRequests = async () => {
     const agentToken = localStorage.getItem("access_token");
     if (!agentToken) return;
 
@@ -364,16 +373,23 @@ function AgentVideokyc() {
       }
       if (!response.ok)
         throw new Error(`HTTP error! status: ${response.status}`);
-      const data = await response.json();
-      setPendingKycRequests(data);
+      const result = await response.json();
+      console.log("Fetched pending requests:", result); // ✅ check karo
+      setPendingKycRequests([...result]); // ✅ new array reference force React re-render
     } catch (error) {
       console.error("Error fetching pending KYC requests:", error);
     }
   };
 
-  useEffect(() => {
-    fetchPendingKycRequests();
-  }, []);
+useEffect(() => {
+  fetchPendingKycRequests();
+
+  // const interval = setInterval(() => {
+  //   fetchPendingKycRequests();
+  // }, 10000); // 10 seconds — server pe load bhi kam, updates bhi milenge
+
+  // return () => clearInterval(interval);
+}, []);
 
   // customer data fetchign for chekcin verification
   useEffect(() => {
@@ -394,7 +410,7 @@ function AgentVideokyc() {
         );
         if (response.ok) {
           const result = await response.json();
-          setdata(result); // ✅ direct object store
+          setdata(result);
         }
       } catch (error) {
         console.error("Customer data fetch error:", error);
@@ -403,6 +419,8 @@ function AgentVideokyc() {
 
     fetchCustomerData();
   }, [roomId]);
+
+  // console.log("AgentVideokyc: showRejectDialog is", showRejectDialog); // Added console.log here
 
   return (
     <div className="flex h-full flex-col overflow-hidden bg-gray-50">
@@ -474,6 +492,42 @@ function AgentVideokyc() {
             >
               <RefreshCw size={16} />
             </button>
+            <button
+              onClick={async () => {
+                try {
+                  const agentToken = localStorage.getItem("access_token");
+                  const response = await fetch(
+                    `${import.meta.env.VITE_BACKEND_URL}/api/kyc/clear-all`,
+                    {
+                      method: "DELETE", // Changed from POST to DELETE
+                      headers: {
+                        Authorization: `Bearer ${agentToken}`,
+                      },
+                    },
+                  );
+                  if (response.status === 401) {
+                    alert("Session expired.");
+                    navigate("/login");
+                    return;
+                  }
+                  if (!response.ok) {
+                    throw new Error(`Failed to clear all requests: ${response.status}`);
+                  }
+                  setToastMessage("All processed requests cleared!");
+                  setShowToast(true);
+                  setTimeout(() => setShowToast(false), 10000);
+                  fetchPendingKycRequests(); // Refresh the queue
+                } catch (error) {
+                  console.error("Error clearing all requests:", error);
+                  setToastMessage("Failed to clear processed requests.");
+                  setShowToast(true);
+                  setTimeout(() => setShowToast(false), 10000);
+                }
+              }}
+              className="p-1.5 bg-red-500 hover:bg-red-600 rounded-lg text-white transition-all text-xs font-bold"
+            >
+              Clear All
+            </button>
           </div>
 
           <div className="flex-1 overflow-y-auto p-3 space-y-3">
@@ -541,6 +595,7 @@ function AgentVideokyc() {
                             : "Guest",
                           ...item,
                         });
+                        setActiveTab("call"); // Automatically switch to the call tab
                       } catch (error) {
                         console.error("Error:", error);
                       }
@@ -634,9 +689,6 @@ function AgentVideokyc() {
             <h2 className="font-bold text-gray-800 text-sm tracking-wider uppercase">
               Verification
             </h2>
-            <div className="bg-blue-50 text-blue-600 px-2 py-1 rounded-md text-[10px] font-bold">
-              MATCH: 98%
-            </div>
           </div>
           <div className="flex-1 overflow-y-auto p-5">
             <div className="space-y-6">
@@ -644,6 +696,26 @@ function AgentVideokyc() {
                 label="Full Name"
                 value={data?.full_name || "N/A"}
                 matched={!!data?.full_name}
+              />
+              <DataRow
+                label="Mobile Number"
+                value={data?.mobile_number || "N/A"}
+                matched={!!data?.mobile_number}
+              />
+              <DataRow
+                label="Aadhar Number"
+                value={data?.aadhar_number || "N/A"}
+                matched={!!data?.aadhar_number}
+              />
+              <DataRow
+                label="PAN Number"
+                value={data?.pan_number || "N/A"}
+                matched={!!data?.pan_number}
+              />
+              <DataRow
+                label="Date of Birth"
+                value={data?.dob || "N/A"}
+                matched={!!data?.dob}
               />
               <div className="space-y-1">
                 <p className="text-[10px] font-bold text-gray-400 uppercase tracking-tighter">
@@ -670,19 +742,63 @@ function AgentVideokyc() {
                     label="PAN Verified"
                     checked={data?.is_pan_verified ?? false}
                   />
-                  <CheckItem
-                    label="Video KYC Pending"
-                    checked={data?.video_kyc_status === "completed"}
-                  />
                 </div>
               </div>
             </div>
             <div className="mt-8 space-y-4">
               <div className="grid grid-cols-2 gap-3">
-                <button className="py-3.5 bg-white border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-colors">
+                <button className="py-3.5 bg-white border border-red-100 text-red-600 rounded-xl text-xs font-bold transition-colors"
+                  onClick={() => {
+                    if (!roomId) return;
+                    setShowRejectDialog(true);
+                  }}
+                >
                   Reject
                 </button>
-                <button className="py-3.5 bg-green-600 text-white rounded-xl text-xs font-bold transition-colors">
+                <button
+                  onClick={async () => {
+                    if (!roomId) return;
+                    try {
+                      const agentToken = localStorage.getItem("access_token");
+                      const response = await fetch(
+                        `${import.meta.env.VITE_BACKEND_URL}/api/agent/service/decision`,
+                        {
+                          method: "POST",
+                          headers: {
+                            "Content-Type": "application/json",
+                            Authorization: `Bearer ${agentToken}`,
+                          },
+                          body: JSON.stringify({
+                            room_id: roomId,
+                            status: "Approved",
+                            notes: "",
+                          }),
+                        },
+                      );
+
+                      if (response.status === 401) {
+                        alert("Session expired.");
+                        navigate("/login");
+                        return;
+                      }
+
+                      if (!response.ok)
+                        throw new Error(`Failed to approve: ${response.status}`);
+
+                      setToastMessage("Your video KYC is successfully approved!");
+                      setShowToast(true);
+                      setTimeout(() => setShowToast(false), 10000);
+                      endCall(); // End the current call session
+                      fetchPendingKycRequests(); // Refresh the queue
+                    } catch (error) {
+                      console.error("Error approving KYC:", error);
+                      setToastMessage("Failed to approve video KYC.");
+                      setShowToast(true);
+                      setTimeout(() => setShowToast(false), 10000);
+                    }
+                  }}
+                  className="py-3.5 bg-green-600 text-white rounded-xl text-xs font-bold transition-colors"
+                >
                   Approve
                 </button>
               </div>
@@ -731,6 +847,133 @@ function AgentVideokyc() {
           </div>
         </div>
       )}
+
+      {showToast && (
+        <ToastNotification message={toastMessage} onClose={() => setShowToast(false)} />
+      )}
+
+      {showRejectDialog && (
+        <RejectDialog
+          onCancel={() => setShowRejectDialog(false)}
+          onSubmit={async (notes) => {
+            if (!notes) {
+              setToastMessage("Rejection cancelled. Notes are required.");
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 10000);
+              return;
+            }
+
+            try {
+              const agentToken = localStorage.getItem("access_token");
+              const response = await fetch(
+                `${import.meta.env.VITE_BACKEND_URL}/api/agent/service/decision`,
+                {
+                  method: "POST",
+                  headers: {
+                    "Content-Type": "application/json",
+                    Authorization: `Bearer ${agentToken}`,
+                  },
+                  body: JSON.stringify({
+                    room_id: roomId,
+                    status: "Rejected",
+                    notes: notes,
+                  }),
+                },
+              );
+
+              if (response.status === 401) {
+                alert("Session expired.");
+                navigate("/login");
+                return;
+              }
+
+              if (!response.ok)
+                throw new Error(`Failed to reject: ${response.status}`);
+
+              setToastMessage("Your video KYC is successfully rejected!");
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 10000);
+              endCall(); // End the current call session
+              fetchPendingKycRequests(); // Refresh the queue
+            } catch (error) {
+              console.error("Error rejecting KYC:", error);
+              setToastMessage("Failed to reject video KYC.");
+              setShowToast(true);
+              setTimeout(() => setShowToast(false), 10000);
+            } finally {
+              setShowRejectDialog(false); // Close dialog
+            }
+          }}
+        />
+      )}
+    </div>
+  );
+}
+
+function RejectDialog({ onCancel, onSubmit }) {
+  const [notes, setNotes] = useState("");
+
+  const handleSubmit = () => {
+    onSubmit(notes);
+  };
+
+  return (
+    <div className="fixed inset-0 z-102 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+      <div className="bg-white rounded-3xl w-full max-w-md overflow-hidden shadow-2xl">
+        {/* DialogHeader */}
+        <div className="p-6 border-b border-gray-100">
+          <h3 className="text-xl font-bold text-gray-900">Reject KYC Request</h3>
+        </div>
+        
+        {/* DialogContent */}
+        <div className="p-6">
+          <label htmlFor="rejectionNotes" className="block text-sm font-medium text-gray-700 mb-2">
+            Reason for Rejection
+          </label>
+          <textarea
+            id="rejectionNotes"
+            className="w-full p-3 border border-gray-300 rounded-xl focus:ring-orange-500 focus:border-orange-500 transition-all text-sm"
+            rows="4"
+            placeholder="Enter detailed reason for rejection..."
+            value={notes}
+            onChange={(e) => setNotes(e.target.value)}
+          ></textarea>
+        </div>
+
+        {/* DialogFooter */}
+        <div className="p-4 bg-gray-50 flex justify-end gap-3">
+          <button
+            onClick={onCancel}
+            className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg text-sm font-semibold hover:bg-gray-300 transition-colors"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSubmit}
+            className="px-4 py-2 bg-red-600 text-white rounded-lg text-sm font-semibold hover:bg-red-700 transition-colors"
+          >
+            Confirm Reject
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ToastNotification({ message, onClose }) {
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      onClose();
+    }, 10000); // Auto-hide after 10 seconds
+    return () => clearTimeout(timer);
+  }, [onClose]);
+
+  return (
+    <div className="fixed top-4 right-4 bg-orange-600 text-white px-6 py-3 rounded-full shadow-lg z-101 flex items-center gap-3">
+      <span>{message}</span>
+      <button onClick={onClose} className="text-white/80 hover:text-white">
+        <X size={18} />
+      </button>
     </div>
   );
 }
@@ -787,17 +1030,24 @@ function DataRow({ label, value, matched }) {
 
 function CheckItem({ label, checked }) {
   return (
-    <label className="flex items-center gap-4 cursor-pointer group">
-      <div
-        className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${checked ? "bg-orange-600 border-orange-600" : "border-gray-200 bg-white"}`}
-      >
-        {checked && <CheckCircle2 size={14} className="text-white" />}
+    <label className="flex justify-between items-center cursor-pointer group">
+      <div className="flex items-center gap-4">
+        <div
+          className={`w-5 h-5 rounded-lg border-2 flex items-center justify-center transition-all ${checked ? "bg-orange-600 border-orange-600" : "border-gray-200 bg-white"}`}
+        >
+          {checked && <CheckCircle2 size={14} className="text-white" />}
+        </div>
+        <span
+          className={`text-[13px] font-semibold transition-colors ${checked ? "text-gray-900" : "text-gray-500"}`}
+        >
+          {label}
+        </span>
       </div>
-      <span
-        className={`text-[13px] font-semibold transition-colors ${checked ? "text-gray-900" : "text-gray-500"}`}
-      >
-        {label}
-      </span>
+      {checked && (
+        <span className="flex items-center gap-1 text-[10px] font-bold text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+          <CheckCircle2 size={12} /> MATCH
+        </span>
+      )}
     </label>
   );
 }
