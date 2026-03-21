@@ -1,6 +1,7 @@
 // src/pages/OperationDashboard.jsx
 import { useState, useEffect } from 'react';
 import { MdRefresh, MdCheckCircle, MdErrorOutline, MdSearch, MdChevronRight, MdHistory } from 'react-icons/md';
+import { toast } from 'react-hot-toast';
 
 function OperationDashboard() {
   const [tickets, setTickets] = useState([]);
@@ -43,7 +44,7 @@ function OperationDashboard() {
 
   const handleResolveTicket = async () => {
     if (!selectedTicket || !agentFeedback) {
-      alert("Please provide feedback to resolve the ticket.");
+      toast.error("Please provide feedback to resolve the ticket.");
       return;
     }
 
@@ -65,17 +66,17 @@ function OperationDashboard() {
       });
 
       if (response.ok) {
-        alert("Ticket Resolved Successfully!");
+        toast.success("Ticket Resolved Successfully!");
         setTickets(tickets.filter(t => t.id !== selectedTicket.id));
         setShowResolveModal(false);
         setSelectedTicket(null);
         setAgentFeedback("");
       } else {
-        alert("Failed to resolve ticket.");
+        toast.error("Failed to resolve ticket.");
       }
     } catch (err) {
       console.error("Error resolving ticket:", err);
-      alert("Something went wrong.");
+      toast.error("Something went wrong.");
     } finally {
       setResolvingId(null);
     }

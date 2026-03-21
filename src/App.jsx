@@ -1,4 +1,5 @@
 import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { Toaster } from 'react-hot-toast';
 import DashboardLayout from "./components/DashboardLayout";
 import OperationDashboard from "./pages/OperationDashboard";
 import GlobalDashboard from "./pages/GlobalDashboard";
@@ -25,6 +26,7 @@ import AgentVideokyc from "./pages/AgentVideokyc";
 function App() {
   return (
     <BrowserRouter>
+      <Toaster position="top-right" reverseOrder={false} />
       <Routes>
         {/* Public Routes for Login and Registration */}
         <Route path="/login" element={<LoginPage />} />
@@ -32,7 +34,7 @@ function App() {
 
         {/* Authenticated Routes with DashboardLayout */}
         <Route path="/" element={<DashboardLayout />}>
-          <Route index element={<VideoKyc/>} />
+          <Route index element={<LoginPage/>} />
           <Route path="videokyc" element={<VideoKyc/>} />
           <Route path="agent-videokyc" element={<AgentVideokyc/>} />
           <Route path="operation" element={<OperationDashboard />} />

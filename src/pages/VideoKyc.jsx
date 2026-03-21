@@ -13,6 +13,7 @@ import {
   Search,
 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
+import { toast } from "react-hot-toast";
 
 function VideoKyc() {
   const navigate = useNavigate();
@@ -188,7 +189,7 @@ function VideoKyc() {
 
     ws.onclose = (event) => {
       if (event.code === 4001) {
-        alert("Authentication Failed: Token is invalid or session expired.");
+        toast.error("Authentication Failed: Token is invalid or session expired.");
       }
       console.log("WebSocket disconnected", event.code);
     };
@@ -199,7 +200,7 @@ function VideoKyc() {
     const access_token = localStorage.getItem("access_token");
     
     if (!access_token) {
-      alert("Please login first to start Video KYC");
+      toast.error("Please login first to start Video KYC");
       return;
     }
 
@@ -214,7 +215,7 @@ function VideoKyc() {
       });
 
       if (response.status === 401) {
-        alert("Session expired. Please login again.");
+        toast.error("Session expired. Please login again.");
         navigate("/login");
         return;
       }

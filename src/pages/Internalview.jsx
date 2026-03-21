@@ -1,5 +1,5 @@
 // src/pages/Internalview.jsx
-import { useState } from 'react';
+import React from 'react';
 import {Bell} from 'lucide-react'
 
 function InternalView() {

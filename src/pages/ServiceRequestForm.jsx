@@ -1,5 +1,6 @@
 // src/pages/ServiceRequestForm.jsx
 import { useState } from 'react'
+import { toast } from 'react-hot-toast'
 import {
   MdDashboard,
   MdReceipt,
@@ -45,7 +46,7 @@ function ServiceForm() {
 
   const handleSubmit = async () => {
     if (!subject || !description) {
-      alert("Please fill in both subject and description.")
+      toast.error("Please fill in both subject and description.")
       return
     }
 
@@ -66,16 +67,16 @@ function ServiceForm() {
       })
 
       if (response.ok) {
-        alert("Ticket Raised Successfully!")
+        toast.success("Ticket Raised Successfully!")
         setSubject("")
         setDescription("")
       } else {
         const errorData = await response.json()
-        alert(`Error: ${errorData.detail || "Failed to raise ticket"}`)
+        toast.error(`Error: ${errorData.detail || "Failed to raise ticket"}`)
       }
     } catch (error) {
       console.error("Error raising ticket:", error)
-      alert("Something went wrong. Please try again.")
+      toast.error("Something went wrong. Please try again.")
     } finally {
       setIsSubmitting(false)
     }
